@@ -1,6 +1,7 @@
 package com.henri.nonogram.ui;
 
 import com.henri.nonogram.model.Puzzle;
+import com.henri.nonogram.service.StatsService;
 import javafx.animation.FadeTransition;
 import javafx.animation.ParallelTransition;
 import javafx.animation.ScaleTransition;
@@ -36,6 +37,7 @@ public class GameView extends BorderPane {
     private final Runnable onBack;
     private final Runnable onNextPuzzle;
     private final BoardView boardView;
+    private final StatsService statsService = new StatsService();
     private final int cellSize;
 
     private final int boardPixelWidth;
@@ -46,13 +48,15 @@ public class GameView extends BorderPane {
     private final int rowClueAreaWidth;
     private final int columnClueAreaHeight;
 
-    private final List<List<Label>> rowClueLabels = new ArrayList<>();
-    private final List<List<Label>> columnClueLabels = new ArrayList<>();
+    private final List<List<ClueCellUi>> rowClueCells = new ArrayList<>();
+    private final List<List<ClueCellUi>> columnClueCells = new ArrayList<>();
 
     private Button modeButton;
     private HBox heartsBox;
+    private Label runSummaryLabel;
     private StackPane centerStack;
     private int lastRenderedHearts = -1;
+    private boolean victorySequenceRunning = false;
 
     public GameView(Puzzle puzzle, Runnable onBack, Runnable onNextPuzzle) {
         this.session = new GameSession(puzzle);
@@ -61,7 +65,7 @@ public class GameView extends BorderPane {
         this.boardView = new BoardView(session, this::refreshAllUi, new BoardView.EndStateListener() {
             @Override
             public void onVictory() {
-                showEndOverlay(true);
+                playVictorySequence();
             }
 
             @Override
@@ -93,7 +97,6 @@ public class GameView extends BorderPane {
         });
 
         buildLayout();
-        lastRenderedHearts = session.getHeartsRemaining();
         refreshAllUi();
 
         if (session.isSolved()) {
@@ -158,17 +161,22 @@ public class GameView extends BorderPane {
 
         Label titleLabel = new Label(session.getPuzzle().getTitle());
         titleLabel.getStyleClass().add("screen-title");
+        titleLabel.setWrapText(true);
         titleLabel.setAlignment(Pos.CENTER);
-        titleLabel.setMaxWidth(Double.MAX_VALUE);
+        titleLabel.setMaxWidth(520);
 
         heartsBox = new HBox(10);
         heartsBox.getStyleClass().add("hearts-box");
         heartsBox.setAlignment(Pos.CENTER);
 
-        VBox titleBlock = new VBox(4, titleLabel, heartsBox);
+        runSummaryLabel = new Label();
+        runSummaryLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #6C7684;");
+
+        VBox titleBlock = new VBox(4, titleLabel, heartsBox, runSummaryLabel);
         titleBlock.getStyleClass().add("top-bar-center");
         titleBlock.setAlignment(Pos.CENTER);
         titleBlock.setFillWidth(true);
+        titleBlock.setMaxWidth(540);
         titleBlock.setPickOnBounds(false);
         titleBlock.setMouseTransparent(true);
 
@@ -255,10 +263,10 @@ public class GameView extends BorderPane {
 
         for (int row = 0; row < rowClues.size(); row++) {
             List<Integer> clues = rowClues.get(row);
-            List<Label> labelsForRow = new ArrayList<>();
+            List<ClueCellUi> cellsForRow = new ArrayList<>();
 
             if (clues.isEmpty()) {
-                rowClueLabels.add(labelsForRow);
+                rowClueCells.add(cellsForRow);
                 continue;
             }
 
@@ -268,20 +276,19 @@ public class GameView extends BorderPane {
             for (int i = 0; i < clues.size(); i++) {
                 int x = startX + (i * rowClueCellWidth);
 
-                StackPane clueCell = createClueCell(
+                ClueCellUi clueCell = createClueCell(
                         String.valueOf(clues.get(i)),
                         rowClueCellWidth,
                         cellSize
                 );
-                clueCell.setLayoutX(x);
-                clueCell.setLayoutY(y);
+                clueCell.root.setLayoutX(x);
+                clueCell.root.setLayoutY(y);
 
-                Label label = (Label) clueCell.getChildren().get(1);
-                labelsForRow.add(label);
-                container.getChildren().add(clueCell);
+                cellsForRow.add(clueCell);
+                container.getChildren().add(clueCell.root);
             }
 
-            rowClueLabels.add(labelsForRow);
+            rowClueCells.add(cellsForRow);
         }
 
         return container;
@@ -297,10 +304,10 @@ public class GameView extends BorderPane {
 
         for (int col = 0; col < columnClues.size(); col++) {
             List<Integer> clues = columnClues.get(col);
-            List<Label> labelsForColumn = new ArrayList<>();
+            List<ClueCellUi> cellsForColumn = new ArrayList<>();
 
             if (clues.isEmpty()) {
-                columnClueLabels.add(labelsForColumn);
+                columnClueCells.add(cellsForColumn);
                 continue;
             }
 
@@ -310,26 +317,25 @@ public class GameView extends BorderPane {
             for (int i = 0; i < clues.size(); i++) {
                 int y = startY + (i * cellSize);
 
-                StackPane clueCell = createClueCell(
+                ClueCellUi clueCell = createClueCell(
                         String.valueOf(clues.get(i)),
                         cellSize,
                         cellSize
                 );
-                clueCell.setLayoutX(x);
-                clueCell.setLayoutY(y);
+                clueCell.root.setLayoutX(x);
+                clueCell.root.setLayoutY(y);
 
-                Label label = (Label) clueCell.getChildren().get(1);
-                labelsForColumn.add(label);
-                container.getChildren().add(clueCell);
+                cellsForColumn.add(clueCell);
+                container.getChildren().add(clueCell.root);
             }
 
-            columnClueLabels.add(labelsForColumn);
+            columnClueCells.add(cellsForColumn);
         }
 
         return container;
     }
 
-    private StackPane createClueCell(String text, double width, double height) {
+    private ClueCellUi createClueCell(String text, double width, double height) {
         Rectangle background = new Rectangle(width, height);
         background.setFill(Color.web(CLUE_BOX_FILL));
         background.setStroke(Color.web(CLUE_BOX_BORDER));
@@ -347,7 +353,7 @@ public class GameView extends BorderPane {
         cell.setPrefSize(width, height);
         cell.setMaxSize(width, height);
 
-        return cell;
+        return new ClueCellUi(cell, background, label);
     }
 
     private void refreshAllUi() {
@@ -355,6 +361,7 @@ public class GameView extends BorderPane {
         refreshClueVisuals();
         refreshModeButtonText();
         refreshHearts();
+        refreshRunSummary();
     }
 
     private void refreshModeButtonText() {
@@ -375,8 +382,8 @@ public class GameView extends BorderPane {
 
         for (int i = 0; i < session.getMaxHearts(); i++) {
             Label heart = new Label();
-            heart.setMinWidth(28);
-            heart.setPrefWidth(28);
+            heart.setMinWidth(32);
+            heart.setPrefWidth(32);
             heart.setAlignment(Pos.CENTER);
 
             if (i < currentHearts) {
@@ -402,11 +409,11 @@ public class GameView extends BorderPane {
 
     private void applyHeartStyle(Label heart, boolean filled) {
         if (filled) {
-            heart.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #E25555;");
+            heart.setStyle("-fx-font-size: 30px; -fx-font-weight: bold; -fx-text-fill: #E25555;");
             heart.setOpacity(1.0);
         } else {
-            heart.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #D6DAE1;");
-            heart.setOpacity(0.8);
+            heart.setStyle("-fx-font-size: 30px; -fx-font-weight: bold; -fx-text-fill: #D6DAE1;");
+            heart.setOpacity(0.82);
         }
     }
 
@@ -437,49 +444,78 @@ public class GameView extends BorderPane {
 
             FadeTransition fadeIn = new FadeTransition(Duration.millis(180), heart);
             fadeIn.setFromValue(0.15);
-            fadeIn.setToValue(0.8);
+            fadeIn.setToValue(0.82);
 
             new ParallelTransition(grow, fadeIn).play();
         });
         disappear.play();
     }
 
+    private void refreshRunSummary() {
+        runSummaryLabel.setText(
+                "Time " + StatsService.formatDuration(session.getElapsedMillis())
+                        + "  •  Mistakes " + session.getMistakesMadeThisPuzzle()
+        );
+    }
+
     private void refreshClueVisuals() {
-        for (int row = 0; row < rowClueLabels.size(); row++) {
+        for (int row = 0; row < rowClueCells.size(); row++) {
             boolean complete = session.isRowComplete(row);
             boolean hovered = session.getHoveredRow() == row;
 
-            for (Label label : rowClueLabels.get(row)) {
-                label.setStyle(buildClueStyle(complete, hovered));
+            for (ClueCellUi cell : rowClueCells.get(row)) {
+                applyClueStyle(cell, complete, hovered);
             }
         }
 
-        for (int col = 0; col < columnClueLabels.size(); col++) {
+        for (int col = 0; col < columnClueCells.size(); col++) {
             boolean complete = session.isColumnComplete(col);
             boolean hovered = session.getHoveredCol() == col;
 
-            for (Label label : columnClueLabels.get(col)) {
-                label.setStyle(buildClueStyle(complete, hovered));
+            for (ClueCellUi cell : columnClueCells.get(col)) {
+                applyClueStyle(cell, complete, hovered);
             }
         }
     }
 
-    private String buildClueStyle(boolean complete, boolean hovered) {
+    private void applyClueStyle(ClueCellUi cell, boolean complete, boolean hovered) {
         int fontSize = Math.max(14, cellSize / 3);
 
         if (complete) {
-            return "-fx-font-size: " + fontSize + "px; -fx-text-fill: #9097A5;";
+            cell.background.setFill(Color.web("#EEF1F4"));
+            cell.background.setStroke(Color.web("#C8CFDA"));
+            cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold; -fx-text-fill: #9097A5;");
+            return;
         }
 
         if (hovered) {
-            return "-fx-font-size: " + fontSize + "px; -fx-font-weight: bold; -fx-text-fill: #4A90E2;";
+            cell.background.setFill(Color.rgb(74, 144, 226, 0.18));
+            cell.background.setStroke(Color.web("#7FA9E7"));
+            cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold; -fx-text-fill: #336DB4;");
+            return;
         }
 
-        return "-fx-font-size: " + fontSize + "px; -fx-font-weight: bold; -fx-text-fill: #5A6270;";
+        cell.background.setFill(Color.web(CLUE_BOX_FILL));
+        cell.background.setStroke(Color.web(CLUE_BOX_BORDER));
+        cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold; -fx-text-fill: #5A6270;");
+    }
+
+    private void playVictorySequence() {
+        if (victorySequenceRunning) {
+            return;
+        }
+
+        victorySequenceRunning = true;
+        boardView.playCompletionReveal(() -> {
+            victorySequenceRunning = false;
+            showEndOverlay(true);
+        });
     }
 
     private void showEndOverlay(boolean victory) {
         hideEndOverlay();
+
+        StatsService.PlayerStats playerStats = statsService.loadStats();
 
         Label title = new Label(victory ? "Puzzle Completed" : "Game Over");
         title.getStyleClass().add("overlay-title");
@@ -488,6 +524,17 @@ public class GameView extends BorderPane {
                 ? "You solved " + session.getPuzzle().getTitle()
                 : "You ran out of hearts.");
         subtitle.getStyleClass().add("overlay-subtitle");
+
+        Label details = new Label(
+                "Time " + StatsService.formatDuration(session.getElapsedMillis())
+                        + " • Mistakes " + session.getMistakesMadeThisPuzzle()
+        );
+        details.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #6B7380;");
+
+        Label progress = new Label(victory
+                ? "Completed " + playerStats.getPuzzlesCompleted() + " • Streak " + playerStats.getWinStreak()
+                : "Win streak reset • Total mistakes " + playerStats.getTotalMistakesMade());
+        progress.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #8B93A1;");
 
         Button restartButton = new Button("Restart");
         restartButton.getStyleClass().addAll("button", "primary-button");
@@ -512,11 +559,11 @@ public class GameView extends BorderPane {
             buttons.getChildren().add(1, nextButton);
         }
 
-        VBox overlayBox = new VBox(14, title, subtitle, buttons);
+        VBox overlayBox = new VBox(14, title, subtitle, details, progress, buttons);
         overlayBox.getStyleClass().add("overlay-card");
         overlayBox.setAlignment(Pos.CENTER);
         overlayBox.setPadding(new Insets(28));
-        overlayBox.setMaxWidth(380);
+        overlayBox.setMaxWidth(420);
 
         StackPane overlayWrapper = new StackPane(overlayBox);
         overlayWrapper.getStyleClass().add("overlay-backdrop");
@@ -531,5 +578,17 @@ public class GameView extends BorderPane {
         }
 
         centerStack.getChildren().remove(centerStack.getChildren().size() - 1);
+    }
+
+    private static class ClueCellUi {
+        private final StackPane root;
+        private final Rectangle background;
+        private final Label label;
+
+        private ClueCellUi(StackPane root, Rectangle background, Label label) {
+            this.root = root;
+            this.background = background;
+            this.label = label;
+        }
     }
 }

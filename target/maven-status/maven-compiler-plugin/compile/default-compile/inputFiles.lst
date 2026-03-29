@@ -11,6 +11,7 @@ C:\Users\Henri\Downloads\Nonogram app\src\main\java\com\henri\nonogram\model\Puz
 C:\Users\Henri\Downloads\Nonogram app\src\main\java\com\henri\nonogram\service\ClueGenerator.java
 C:\Users\Henri\Downloads\Nonogram app\src\main\java\com\henri\nonogram\service\PuzzleLoader.java
 C:\Users\Henri\Downloads\Nonogram app\src\main\java\com\henri\nonogram\service\SaveService.java
+C:\Users\Henri\Downloads\Nonogram app\src\main\java\com\henri\nonogram\service\StatsService.java
 C:\Users\Henri\Downloads\Nonogram app\src\main\java\com\henri\nonogram\ui\BoardView.java
 C:\Users\Henri\Downloads\Nonogram app\src\main\java\com\henri\nonogram\ui\GameActionResult.java
 C:\Users\Henri\Downloads\Nonogram app\src\main\java\com\henri\nonogram\ui\GameSession.java

@@ -5,6 +5,7 @@ import com.henri.nonogram.model.GameState;
 import com.henri.nonogram.model.Puzzle;
 import com.henri.nonogram.service.ClueGenerator;
 import com.henri.nonogram.service.SaveService;
+import com.henri.nonogram.service.StatsService;
 import javafx.scene.input.MouseButton;
 
 import java.util.ArrayDeque;
@@ -22,6 +23,7 @@ public class GameSession {
     private final List<List<Integer>> rowClues;
     private final List<List<Integer>> columnClues;
     private final SaveService saveService = new SaveService();
+    private final StatsService statsService = new StatsService();
 
     private final Deque<ActionBatch> undoStack = new ArrayDeque<>();
     private final Deque<ActionBatch> redoStack = new ArrayDeque<>();
@@ -35,6 +37,13 @@ public class GameSession {
     private int heartsRemaining = MAX_HEARTS;
     private boolean gameOver = false;
 
+    private int mistakesMadeThisPuzzle = 0;
+    private long accumulatedElapsedMillis = 0L;
+    private long runStartedAtMillis = 0L;
+    private boolean clockRunning = false;
+    private boolean completionRecorded = false;
+    private boolean failureRecorded = false;
+
     public GameSession(Puzzle puzzle) {
         this.gameState = new GameState(puzzle);
 
@@ -45,6 +54,10 @@ public class GameSession {
         loadProgress();
         this.solvedPopupAlreadyShown = isSolved();
         updateGameOverState();
+
+        if (!isInteractionLocked()) {
+            startClock();
+        }
     }
 
     public GameState getGameState() {
@@ -92,6 +105,17 @@ public class GameSession {
         return gameOver;
     }
 
+    public int getMistakesMadeThisPuzzle() {
+        return mistakesMadeThisPuzzle;
+    }
+
+    public long getElapsedMillis() {
+        if (!clockRunning) {
+            return accumulatedElapsedMillis;
+        }
+        return accumulatedElapsedMillis + Math.max(0, System.currentTimeMillis() - runStartedAtMillis);
+    }
+
     public boolean isInteractionLocked() {
         return gameOver || isSolved();
     }
@@ -131,7 +155,6 @@ public class GameSession {
 
         CellState previousState = gameState.getCell(row, col);
 
-        // No overwriting allowed once a cell is no longer empty.
         if (previousState != CellState.EMPTY) {
             return GameActionResult.none();
         }
@@ -144,6 +167,8 @@ public class GameSession {
 
         if (wrongMove) {
             heartLost = loseHeart();
+            mistakesMadeThisPuzzle++;
+            statsService.recordMistake();
             finalState = correctState;
         }
 
@@ -152,6 +177,12 @@ public class GameSession {
         updateGameOverState();
 
         boolean solved = checkSolvedNow();
+        if (solved) {
+            recordPuzzleCompletion();
+        } else if (gameOver) {
+            recordGameOver();
+        }
+
         return new GameActionResult(solved, gameOver, heartLost);
     }
 
@@ -213,7 +244,14 @@ public class GameSession {
         solvedPopupAlreadyShown = false;
         clearHoveredCell();
         heartsRemaining = MAX_HEARTS;
-        updateGameOverState();
+        gameOver = false;
+
+        mistakesMadeThisPuzzle = 0;
+        accumulatedElapsedMillis = 0L;
+        completionRecorded = false;
+        failureRecorded = false;
+        startClock();
+
         saveProgress();
     }
 
@@ -297,7 +335,6 @@ public class GameSession {
             return primaryMode == InputMode.FILL ? CellState.CROSSED : CellState.FILLED;
         }
 
-        // Erasing is disabled because cells cannot be overwritten once set.
         return null;
     }
 
@@ -391,6 +428,8 @@ public class GameSession {
         }
 
         this.heartsRemaining = Math.max(0, Math.min(MAX_HEARTS, saveData.getHeartsRemaining()));
+        this.accumulatedElapsedMillis = Math.max(0L, saveData.getElapsedMillis());
+        this.mistakesMadeThisPuzzle = Math.max(0, saveData.getMistakeCount());
 
         CellState[][] savedGrid = saveData.getGrid();
 
@@ -421,7 +460,51 @@ public class GameSession {
     }
 
     private void saveProgress() {
-        saveService.save(getPuzzle().getId(), copyCurrentGrid(), primaryMode, heartsRemaining);
+        saveService.save(
+                getPuzzle().getId(),
+                copyCurrentGrid(),
+                primaryMode,
+                heartsRemaining,
+                getElapsedMillis(),
+                mistakesMadeThisPuzzle
+        );
+    }
+
+    private void startClock() {
+        runStartedAtMillis = System.currentTimeMillis();
+        clockRunning = true;
+    }
+
+    private void freezeClock() {
+        if (!clockRunning) {
+            return;
+        }
+
+        accumulatedElapsedMillis += Math.max(0L, System.currentTimeMillis() - runStartedAtMillis);
+        clockRunning = false;
+    }
+
+    private void recordPuzzleCompletion() {
+        if (completionRecorded) {
+            return;
+        }
+
+        freezeClock();
+        statsService.recordPuzzleCompleted(getPuzzle().getDisplayDifficulty(), accumulatedElapsedMillis);
+        completionRecorded = true;
+        failureRecorded = false;
+        saveProgress();
+    }
+
+    private void recordGameOver() {
+        if (failureRecorded || completionRecorded) {
+            return;
+        }
+
+        freezeClock();
+        statsService.recordGameOver();
+        failureRecorded = true;
+        saveProgress();
     }
 
     private static class ActionBatch {

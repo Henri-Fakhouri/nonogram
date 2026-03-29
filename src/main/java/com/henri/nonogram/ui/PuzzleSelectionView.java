@@ -1,6 +1,8 @@
 package com.henri.nonogram.ui;
 
+import com.henri.nonogram.generator.GeneratedDifficulty;
 import com.henri.nonogram.model.Puzzle;
+import com.henri.nonogram.service.StatsService;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -9,6 +11,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -29,10 +32,13 @@ public class PuzzleSelectionView extends BorderPane {
     private final ComboBox<String> packFilter = new ComboBox<>();
     private final ComboBox<String> difficultyFilter = new ComboBox<>();
     private final VBox puzzleListBox = new VBox(12);
+    private final StatsService statsService = new StatsService();
+    private final StatsService.PlayerStats playerStats;
 
     public PuzzleSelectionView(List<Puzzle> puzzles, Consumer<Puzzle> onSelect) {
         this.allPuzzles = new ArrayList<>(puzzles);
         this.onSelect = onSelect;
+        this.playerStats = statsService.loadStats();
 
         this.allPuzzles.sort(Comparator
                 .comparing((Puzzle p) -> p.getDisplayPack().toLowerCase())
@@ -90,6 +96,8 @@ public class PuzzleSelectionView extends BorderPane {
         header.getStyleClass().add("menu-header");
         header.setAlignment(Pos.CENTER);
 
+        VBox statsCard = buildStatsCard();
+
         puzzleListBox.getStyleClass().add("menu-list");
         puzzleListBox.setAlignment(Pos.TOP_CENTER);
         puzzleListBox.setPadding(new Insets(4));
@@ -102,16 +110,75 @@ public class PuzzleSelectionView extends BorderPane {
         scrollPane.setPrefViewportHeight(420);
         scrollPane.setMaxWidth(Double.MAX_VALUE);
 
-        VBox content = new VBox(18, header, filtersBox, scrollPane);
+        VBox content = new VBox(18, header, statsCard, filtersBox, scrollPane);
         content.setAlignment(Pos.TOP_CENTER);
         content.setFillWidth(true);
-        content.setMaxWidth(520);
+        content.setMaxWidth(560);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
         StackPane centeredContent = new StackPane(content);
         centeredContent.setAlignment(Pos.TOP_CENTER);
 
         setCenter(centeredContent);
+    }
+
+    private VBox buildStatsCard() {
+        Label title = new Label("Progress");
+        title.getStyleClass().add("filter-label");
+
+        HBox completed = buildStatLine("Puzzles completed", String.valueOf(playerStats.getPuzzlesCompleted()));
+        HBox streak = buildStatLine("Win streak", String.valueOf(playerStats.getWinStreak()));
+        HBox mistakes = buildStatLine("Total mistakes", String.valueOf(playerStats.getTotalMistakesMade()));
+
+        Label fastestLabel = new Label("Fastest clears");
+        fastestLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #6A7381;");
+
+        HBox easy = buildStatLine(
+                GeneratedDifficulty.EASY.getDisplayName(),
+                formatFastest(playerStats.getFastestTimeForDifficulty(GeneratedDifficulty.EASY.getDisplayName()))
+        );
+        HBox medium = buildStatLine(
+                GeneratedDifficulty.MEDIUM.getDisplayName(),
+                formatFastest(playerStats.getFastestTimeForDifficulty(GeneratedDifficulty.MEDIUM.getDisplayName()))
+        );
+        HBox hard = buildStatLine(
+                GeneratedDifficulty.HARD.getDisplayName(),
+                formatFastest(playerStats.getFastestTimeForDifficulty(GeneratedDifficulty.HARD.getDisplayName()))
+        );
+
+        VBox card = new VBox(10, title, completed, streak, mistakes, fastestLabel, easy, medium, hard);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.setStyle("""
+                -fx-background-color: rgba(255,255,255,0.78);
+                -fx-background-radius: 18;
+                -fx-border-color: rgba(174,185,201,0.65);
+                -fx-border-radius: 18;
+                -fx-padding: 16;
+                """);
+
+        return card;
+    }
+
+    private HBox buildStatLine(String labelText, String valueText) {
+        Label label = new Label(labelText);
+        label.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #5F6875;");
+
+        Label value = new Label(valueText);
+        value.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #223B63;");
+
+        HBox row = new HBox();
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        row.getChildren().addAll(label, spacer, value);
+        return row;
+    }
+
+    private String formatFastest(long millis) {
+        return millis <= 0 ? "—" : StatsService.formatDuration(millis);
     }
 
     private Label buildFilterLabel(String text) {
@@ -170,9 +237,9 @@ public class PuzzleSelectionView extends BorderPane {
         button.setOnAction(e -> onSelect.accept(puzzle));
 
         Label metaLabel = new Label(
-                puzzle.getDisplayPack() + " • " +
-                puzzle.getDisplayDifficulty() + " • " +
-                puzzle.getWidth() + "x" + puzzle.getHeight()
+                puzzle.getDisplayPack() + " • "
+                        + puzzle.getDisplayDifficulty() + " • "
+                        + puzzle.getWidth() + "x" + puzzle.getHeight()
         );
         metaLabel.getStyleClass().add("menu-meta");
 
@@ -187,11 +254,11 @@ public class PuzzleSelectionView extends BorderPane {
 
     private boolean matchesPack(Puzzle puzzle) {
         String selected = packFilter.getValue();
-        return selected == null || selected.equals("All Packs") || puzzle.getDisplayPack().equals(selected);
+        return selected == null || "All Packs".equals(selected) || selected.equals(puzzle.getDisplayPack());
     }
 
     private boolean matchesDifficulty(Puzzle puzzle) {
         String selected = difficultyFilter.getValue();
-        return selected == null || selected.equals("All Difficulties") || puzzle.getDisplayDifficulty().equals(selected);
+        return selected == null || "All Difficulties".equals(selected) || selected.equals(puzzle.getDisplayDifficulty());
     }
 }

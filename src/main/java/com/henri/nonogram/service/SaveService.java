@@ -1,5 +1,6 @@
 package com.henri.nonogram.service;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.henri.nonogram.model.CellState;
 import com.henri.nonogram.ui.InputMode;
@@ -30,6 +31,15 @@ public class SaveService {
     }
 
     public void save(String puzzleId, CellState[][] grid, InputMode primaryMode, int heartsRemaining) {
+        save(puzzleId, grid, primaryMode, heartsRemaining, 0L, 0);
+    }
+
+    public void save(String puzzleId,
+                     CellState[][] grid,
+                     InputMode primaryMode,
+                     int heartsRemaining,
+                     long elapsedMillis,
+                     int mistakeCount) {
         try {
             Files.createDirectories(savesDirectory);
 
@@ -37,6 +47,8 @@ public class SaveService {
             data.setPuzzleId(puzzleId);
             data.setPrimaryMode(primaryMode);
             data.setHeartsRemaining(heartsRemaining);
+            data.setElapsedMillis(Math.max(0, elapsedMillis));
+            data.setMistakeCount(Math.max(0, mistakeCount));
             data.setGrid(copyGrid(grid));
 
             Path file = savesDirectory.resolve(puzzleId + ".json");
@@ -57,10 +69,13 @@ public class SaveService {
         return copy;
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SaveData {
         private String puzzleId;
         private InputMode primaryMode;
         private int heartsRemaining = 3;
+        private long elapsedMillis = 0L;
+        private int mistakeCount = 0;
         private CellState[][] grid;
 
         public SaveData() {
@@ -88,6 +103,22 @@ public class SaveService {
 
         public void setHeartsRemaining(int heartsRemaining) {
             this.heartsRemaining = heartsRemaining;
+        }
+
+        public long getElapsedMillis() {
+            return elapsedMillis;
+        }
+
+        public void setElapsedMillis(long elapsedMillis) {
+            this.elapsedMillis = elapsedMillis;
+        }
+
+        public int getMistakeCount() {
+            return mistakeCount;
+        }
+
+        public void setMistakeCount(int mistakeCount) {
+            this.mistakeCount = mistakeCount;
         }
 
         public CellState[][] getGrid() {
