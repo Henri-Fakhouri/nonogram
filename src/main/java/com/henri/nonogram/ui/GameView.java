@@ -1,8 +1,8 @@
 package com.henri.nonogram.ui;
 
 import com.henri.nonogram.model.Puzzle;
-import com.henri.nonogram.service.StatsService;
 import javafx.animation.FadeTransition;
+import javafx.animation.FillTransition;
 import javafx.animation.ParallelTransition;
 import javafx.animation.ScaleTransition;
 import javafx.geometry.HPos;
@@ -37,7 +37,6 @@ public class GameView extends BorderPane {
     private final Runnable onBack;
     private final Runnable onNextPuzzle;
     private final BoardView boardView;
-    private final StatsService statsService = new StatsService();
     private final int cellSize;
 
     private final int boardPixelWidth;
@@ -53,10 +52,11 @@ public class GameView extends BorderPane {
 
     private Button modeButton;
     private HBox heartsBox;
-    private Label runSummaryLabel;
     private StackPane centerStack;
+    private StackPane activeOverlay;
     private int lastRenderedHearts = -1;
     private boolean victorySequenceRunning = false;
+    private boolean entrancePlayed = false;
 
     public GameView(Puzzle puzzle, Runnable onBack, Runnable onNextPuzzle) {
         this.session = new GameSession(puzzle);
@@ -104,12 +104,19 @@ public class GameView extends BorderPane {
         } else if (session.isGameOver()) {
             showEndOverlay(false);
         }
+
+        this.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null && !entrancePlayed) {
+                entrancePlayed = true;
+                javafx.application.Platform.runLater(this::playEntranceAnimation);
+            }
+        });
     }
 
     private void handleKeyPressed(KeyEvent event) {
         boolean handled = false;
 
-        if (session.isInteractionLocked()) {
+        if (session.isInteractionLocked() || victorySequenceRunning) {
             return;
         }
 
@@ -145,6 +152,8 @@ public class GameView extends BorderPane {
         puzzleCard.getStyleClass().add("puzzle-card");
         puzzleCard.setAlignment(Pos.CENTER);
         puzzleCard.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        puzzleCard.setOpacity(0.0);
+        puzzleCard.setTranslateY(12);
 
         centerStack = new StackPane(puzzleCard);
         centerStack.setAlignment(Pos.CENTER);
@@ -169,16 +178,15 @@ public class GameView extends BorderPane {
         heartsBox.getStyleClass().add("hearts-box");
         heartsBox.setAlignment(Pos.CENTER);
 
-        runSummaryLabel = new Label();
-        runSummaryLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #6C7684;");
-
-        VBox titleBlock = new VBox(4, titleLabel, heartsBox, runSummaryLabel);
+        VBox titleBlock = new VBox(4, titleLabel, heartsBox);
         titleBlock.getStyleClass().add("top-bar-center");
         titleBlock.setAlignment(Pos.CENTER);
         titleBlock.setFillWidth(true);
         titleBlock.setMaxWidth(540);
         titleBlock.setPickOnBounds(false);
         titleBlock.setMouseTransparent(true);
+        titleBlock.setOpacity(0.0);
+        titleBlock.setTranslateY(-10);
 
         modeButton = new Button();
         modeButton.getStyleClass().addAll("button", "primary-button", "toggle-button");
@@ -206,12 +214,13 @@ public class GameView extends BorderPane {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox overlayBar = new HBox(18, leftBox, spacer, rightBox);
-        overlayBar.setAlignment(Pos.CENTER);
+        HBox chromeBar = new HBox(18, leftBox, spacer, rightBox);
+        chromeBar.setAlignment(Pos.CENTER);
 
-        StackPane topBar = new StackPane(overlayBar, titleBlock);
+        StackPane topBar = new StackPane(chromeBar, titleBlock);
         topBar.getStyleClass().add("top-bar");
         topBar.setPadding(new Insets(0, 0, 24, 0));
+        topBar.setUserData(titleBlock);
 
         return topBar;
     }
@@ -347,6 +356,7 @@ public class GameView extends BorderPane {
         label.setPrefSize(width, height);
         label.setMaxSize(width, height);
         label.setAlignment(Pos.CENTER);
+        label.setTextFill(Color.web("#5A6270"));
 
         StackPane cell = new StackPane(background, label);
         cell.setMinSize(width, height);
@@ -361,7 +371,6 @@ public class GameView extends BorderPane {
         refreshClueVisuals();
         refreshModeButtonText();
         refreshHearts();
-        refreshRunSummary();
     }
 
     private void refreshModeButtonText() {
@@ -409,10 +418,12 @@ public class GameView extends BorderPane {
 
     private void applyHeartStyle(Label heart, boolean filled) {
         if (filled) {
-            heart.setStyle("-fx-font-size: 30px; -fx-font-weight: bold; -fx-text-fill: #E25555;");
+            heart.setStyle("-fx-font-size: 30px; -fx-font-weight: bold;");
+            heart.setTextFill(Color.web("#E25555"));
             heart.setOpacity(1.0);
         } else {
-            heart.setStyle("-fx-font-size: 30px; -fx-font-weight: bold; -fx-text-fill: #D6DAE1;");
+            heart.setStyle("-fx-font-size: 30px; -fx-font-weight: bold;");
+            heart.setTextFill(Color.web("#D6DAE1"));
             heart.setOpacity(0.82);
         }
     }
@@ -426,7 +437,7 @@ public class GameView extends BorderPane {
 
         FadeTransition fadeOut = new FadeTransition(Duration.millis(160), heart);
         fadeOut.setFromValue(1.0);
-        fadeOut.setToValue(0.15);
+        fadeOut.setToValue(0.12);
 
         ParallelTransition disappear = new ParallelTransition(shrink, fadeOut);
         disappear.setOnFinished(event -> {
@@ -449,13 +460,6 @@ public class GameView extends BorderPane {
             new ParallelTransition(grow, fadeIn).play();
         });
         disappear.play();
-    }
-
-    private void refreshRunSummary() {
-        runSummaryLabel.setText(
-                "Time " + StatsService.formatDuration(session.getElapsedMillis())
-                        + "  •  Mistakes " + session.getMistakesMadeThisPuzzle()
-        );
     }
 
     private void refreshClueVisuals() {
@@ -482,22 +486,64 @@ public class GameView extends BorderPane {
         int fontSize = Math.max(14, cellSize / 3);
 
         if (complete) {
-            cell.background.setFill(Color.web("#EEF1F4"));
+            animateClueBackground(cell.background, Color.web("#EEF1F4"));
             cell.background.setStroke(Color.web("#C8CFDA"));
-            cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold; -fx-text-fill: #9097A5;");
+            cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold;");
+            cell.label.setTextFill(Color.web("#9097A5"));
             return;
         }
 
         if (hovered) {
-            cell.background.setFill(Color.rgb(74, 144, 226, 0.18));
+            animateClueBackground(cell.background, Color.rgb(74, 144, 226, 0.18));
             cell.background.setStroke(Color.web("#7FA9E7"));
-            cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold; -fx-text-fill: #336DB4;");
+            cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold;");
+            cell.label.setTextFill(Color.web("#336DB4"));
             return;
         }
 
-        cell.background.setFill(Color.web(CLUE_BOX_FILL));
+        animateClueBackground(cell.background, Color.web(CLUE_BOX_FILL));
         cell.background.setStroke(Color.web(CLUE_BOX_BORDER));
-        cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold; -fx-text-fill: #5A6270;");
+        cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold;");
+        cell.label.setTextFill(Color.web("#5A6270"));
+    }
+
+    private void animateClueBackground(Rectangle rectangle, Color target) {
+        Color current = (Color) rectangle.getFill();
+        if (current == null || current.equals(target)) {
+            rectangle.setFill(target);
+            return;
+        }
+
+        FillTransition transition = new FillTransition(Duration.millis(110), rectangle, current, target);
+        transition.play();
+    }
+
+    private void playEntranceAnimation() {
+        if (centerStack == null || centerStack.getChildren().isEmpty()) {
+            return;
+        }
+
+        StackPane puzzleCard = (StackPane) centerStack.getChildren().get(0);
+        StackPane topBar = (StackPane) getTop();
+        VBox titleBlock = (VBox) topBar.getUserData();
+
+        FadeTransition cardFade = new FadeTransition(Duration.millis(220), puzzleCard);
+        cardFade.setFromValue(0.0);
+        cardFade.setToValue(1.0);
+
+        javafx.animation.TranslateTransition cardSlide = new javafx.animation.TranslateTransition(Duration.millis(260), puzzleCard);
+        cardSlide.setFromY(12);
+        cardSlide.setToY(0);
+
+        FadeTransition titleFade = new FadeTransition(Duration.millis(220), titleBlock);
+        titleFade.setFromValue(0.0);
+        titleFade.setToValue(1.0);
+
+        javafx.animation.TranslateTransition titleSlide = new javafx.animation.TranslateTransition(Duration.millis(260), titleBlock);
+        titleSlide.setFromY(-10);
+        titleSlide.setToY(0);
+
+        new ParallelTransition(cardFade, cardSlide, titleFade, titleSlide).play();
     }
 
     private void playVictorySequence() {
@@ -506,7 +552,7 @@ public class GameView extends BorderPane {
         }
 
         victorySequenceRunning = true;
-        boardView.playCompletionReveal(() -> {
+        boardView.playVictoryReveal(() -> {
             victorySequenceRunning = false;
             showEndOverlay(true);
         });
@@ -515,8 +561,6 @@ public class GameView extends BorderPane {
     private void showEndOverlay(boolean victory) {
         hideEndOverlay();
 
-        StatsService.PlayerStats playerStats = statsService.loadStats();
-
         Label title = new Label(victory ? "Puzzle Completed" : "Game Over");
         title.getStyleClass().add("overlay-title");
 
@@ -524,17 +568,6 @@ public class GameView extends BorderPane {
                 ? "You solved " + session.getPuzzle().getTitle()
                 : "You ran out of hearts.");
         subtitle.getStyleClass().add("overlay-subtitle");
-
-        Label details = new Label(
-                "Time " + StatsService.formatDuration(session.getElapsedMillis())
-                        + " • Mistakes " + session.getMistakesMadeThisPuzzle()
-        );
-        details.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #6B7380;");
-
-        Label progress = new Label(victory
-                ? "Completed " + playerStats.getPuzzlesCompleted() + " • Streak " + playerStats.getWinStreak()
-                : "Win streak reset • Total mistakes " + playerStats.getTotalMistakesMade());
-        progress.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #8B93A1;");
 
         Button restartButton = new Button("Restart");
         restartButton.getStyleClass().addAll("button", "primary-button");
@@ -559,25 +592,47 @@ public class GameView extends BorderPane {
             buttons.getChildren().add(1, nextButton);
         }
 
-        VBox overlayBox = new VBox(14, title, subtitle, details, progress, buttons);
+        VBox overlayBox = new VBox(14, title, subtitle, buttons);
         overlayBox.getStyleClass().add("overlay-card");
         overlayBox.setAlignment(Pos.CENTER);
         overlayBox.setPadding(new Insets(28));
-        overlayBox.setMaxWidth(420);
+        overlayBox.setMaxWidth(390);
+        overlayBox.setOpacity(0.0);
+        overlayBox.setScaleX(0.92);
+        overlayBox.setScaleY(0.92);
 
         StackPane overlayWrapper = new StackPane(overlayBox);
         overlayWrapper.getStyleClass().add("overlay-backdrop");
         overlayWrapper.setPickOnBounds(true);
+        overlayWrapper.setOpacity(0.0);
 
+        activeOverlay = overlayWrapper;
         centerStack.getChildren().add(overlayWrapper);
+
+        FadeTransition backdropFade = new FadeTransition(Duration.millis(160), overlayWrapper);
+        backdropFade.setFromValue(0.0);
+        backdropFade.setToValue(1.0);
+
+        FadeTransition boxFade = new FadeTransition(Duration.millis(180), overlayBox);
+        boxFade.setFromValue(0.0);
+        boxFade.setToValue(1.0);
+
+        ScaleTransition boxScale = new ScaleTransition(Duration.millis(220), overlayBox);
+        boxScale.setFromX(0.92);
+        boxScale.setFromY(0.92);
+        boxScale.setToX(1.0);
+        boxScale.setToY(1.0);
+
+        new ParallelTransition(backdropFade, boxFade, boxScale).play();
     }
 
     private void hideEndOverlay() {
-        if (centerStack == null || centerStack.getChildren().size() <= 1) {
+        if (centerStack == null || activeOverlay == null) {
             return;
         }
 
-        centerStack.getChildren().remove(centerStack.getChildren().size() - 1);
+        centerStack.getChildren().remove(activeOverlay);
+        activeOverlay = null;
     }
 
     private static class ClueCellUi {

@@ -27,18 +27,24 @@ public class BoardView extends GridPane {
     private static final int OUTER_BORDER_WIDTH = 2;
     private static final int MINOR_GRID_WIDTH = 1;
     private static final int MAJOR_GRID_WIDTH = 3;
-    private static final int HEART_LOSS_END_STATE_DELAY_MS = 360;
+
+    private static final int HEART_LOSS_END_STATE_DELAY_MS = 340;
 
     private static final Color EMPTY_COLOR = Color.web("#FFFFFF");
     private static final Color FILLED_COLOR = Color.web("#2F3640");
-    private static final Color LINE_HOVER_EMPTY_COLOR = Color.web("#EDF5FF");
-    private static final Color LINE_HOVER_FILLED_COLOR = Color.web("#33495E");
-    private static final Color INTERSECTION_EMPTY_COLOR = Color.web("#DDEBFF");
-    private static final Color INTERSECTION_FILLED_COLOR = Color.web("#243442");
-    private static final Color COMPLETED_EMPTY_COLOR = Color.web("#EDEDED");
-    private static final Color COMPLETED_FILLED_COLOR = Color.web("#606B78");
-    private static final Color VICTORY_FILLED_ACCENT = Color.web("#506D8B");
-    private static final Color VICTORY_EMPTY_ACCENT = Color.web("#F2F6FD");
+
+    private static final Color HOVER_EMPTY_COLOR = Color.web("#EEF5FF");
+    private static final Color HOVER_FILLED_COLOR = Color.web("#33404D");
+
+    private static final Color INTERSECTION_EMPTY_COLOR = Color.web("#DCEBFF");
+    private static final Color INTERSECTION_FILLED_COLOR = Color.web("#25303B");
+
+    private static final Color COMPLETED_EMPTY_COLOR = Color.web("#ECECEC");
+    private static final Color COMPLETED_FILLED_COLOR = Color.web("#66707C");
+
+    private static final Color VICTORY_FILLED_FLASH = Color.web("#8FA9C6");
+    private static final Color VICTORY_EMPTY_FLASH = Color.web("#F4F8FF");
+
     private static final Color CROSS_COLOR = Color.web("#7F8C8D");
     private static final String BORDER_COLOR = "#333333";
 
@@ -49,7 +55,7 @@ public class BoardView extends GridPane {
     private final EndStateListener endStateListener;
 
     private MouseButton dragMode = null;
-    private boolean completionRevealRunning = false;
+    private boolean victoryAnimationRunning = false;
 
     public BoardView(GameSession session, Runnable onVisualStateChanged, EndStateListener endStateListener) {
         this.session = session;
@@ -123,13 +129,16 @@ public class BoardView extends GridPane {
         rectangle.setFill(EMPTY_COLOR);
 
         Rectangle flashOverlay = new Rectangle(cellSize, cellSize);
-        flashOverlay.setFill(Color.rgb(231, 76, 60, 0.60));
+        flashOverlay.setArcWidth(6);
+        flashOverlay.setArcHeight(6);
+        flashOverlay.setFill(Color.rgb(231, 76, 60, 0.78));
         flashOverlay.setOpacity(0.0);
         flashOverlay.setMouseTransparent(true);
 
         Text text = new Text();
         text.setStyle("-fx-font-size: " + Math.max(12, cellSize / 3) + "px;");
         text.setFill(CROSS_COLOR);
+        text.setOpacity(1.0);
 
         StackPane cell = new StackPane(rectangle, flashOverlay, text);
         cell.setAlignment(Pos.CENTER);
@@ -147,10 +156,10 @@ public class BoardView extends GridPane {
                 """.formatted(BORDER_COLOR, top, left));
 
         cellUis[row][col] = new CellUI(cell, rectangle, flashOverlay, text);
-        updateCellVisual(row, col);
+        updateCellVisual(row, col, true);
 
         cell.setOnMousePressed(event -> {
-            if (session.isInteractionLocked()) {
+            if (session.isInteractionLocked() || victoryAnimationRunning) {
                 event.consume();
                 return;
             }
@@ -165,7 +174,7 @@ public class BoardView extends GridPane {
         });
 
         cell.setOnDragDetected(event -> {
-            if (!session.isInteractionLocked()) {
+            if (!session.isInteractionLocked() && !victoryAnimationRunning) {
                 cell.startFullDrag();
             }
             event.consume();
@@ -188,7 +197,7 @@ public class BoardView extends GridPane {
         cell.setOnMouseDragEntered(event -> {
             session.setHoveredCell(row, col);
 
-            if (dragMode != null && !session.isInteractionLocked()) {
+            if (dragMode != null && !session.isInteractionLocked() && !victoryAnimationRunning) {
                 applyDragAction(row, col);
             }
 
@@ -208,12 +217,10 @@ public class BoardView extends GridPane {
         GameActionResult result = session.applyAction(dragMode, row, col);
 
         if (result.isHeartLost()) {
-            playWrongCellFlash(row, col);
-            playBoardShake();
+            playWrongMoveFeedback(row, col);
         }
 
-        boolean stopContinuousInput = result.isHeartLost() || result.isSolved() || result.isGameOver();
-        if (stopContinuousInput) {
+        if (result.isHeartLost() || result.isSolved() || result.isGameOver()) {
             dragMode = null;
             session.endAction();
         }
@@ -236,45 +243,43 @@ public class BoardView extends GridPane {
         pause.play();
     }
 
-    private void playWrongCellFlash(int row, int col) {
+    private void playWrongMoveFeedback(int row, int col) {
         CellUI cell = cellUis[row][col];
 
-        FadeTransition flashIn = new FadeTransition(Duration.millis(75), cell.flashOverlay);
+        FadeTransition flashIn = new FadeTransition(Duration.millis(70), cell.flashOverlay);
         flashIn.setFromValue(0.0);
-        flashIn.setToValue(0.85);
+        flashIn.setToValue(0.92);
 
-        FadeTransition flashOut = new FadeTransition(Duration.millis(190), cell.flashOverlay);
-        flashOut.setFromValue(0.85);
+        FadeTransition flashOut = new FadeTransition(Duration.millis(180), cell.flashOverlay);
+        flashOut.setFromValue(0.92);
         flashOut.setToValue(0.0);
 
-        ScaleTransition shrink = new ScaleTransition(Duration.millis(90), cell.root);
+        ScaleTransition shrink = new ScaleTransition(Duration.millis(85), cell.root);
         shrink.setFromX(1.0);
         shrink.setFromY(1.0);
-        shrink.setToX(0.94);
-        shrink.setToY(0.94);
+        shrink.setToX(0.92);
+        shrink.setToY(0.92);
 
-        ScaleTransition grow = new ScaleTransition(Duration.millis(120), cell.root);
-        grow.setFromX(0.94);
-        grow.setFromY(0.94);
-        grow.setToX(1.0);
-        grow.setToY(1.0);
+        ScaleTransition rebound = new ScaleTransition(Duration.millis(130), cell.root);
+        rebound.setFromX(0.92);
+        rebound.setFromY(0.92);
+        rebound.setToX(1.0);
+        rebound.setToY(1.0);
 
-        ParallelTransition animation = new ParallelTransition(
+        ParallelTransition cellFeedback = new ParallelTransition(
                 new SequentialTransition(flashIn, flashOut),
-                new SequentialTransition(shrink, grow)
+                new SequentialTransition(shrink, rebound)
         );
-        animation.play();
-    }
+        cellFeedback.play();
 
-    private void playBoardShake() {
-        SequentialTransition shake = new SequentialTransition(
-                createShakeStep(-6, 35),
-                createShakeStep(6, 45),
+        SequentialTransition boardShake = new SequentialTransition(
+                createShakeStep(-7, 35),
+                createShakeStep(7, 45),
                 createShakeStep(-4, 40),
                 createShakeStep(4, 40),
                 createShakeStep(0, 35)
         );
-        shake.play();
+        boardShake.play();
     }
 
     private TranslateTransition createShakeStep(double targetX, int millis) {
@@ -283,84 +288,18 @@ public class BoardView extends GridPane {
         return step;
     }
 
-    public void playCompletionReveal(Runnable onFinished) {
-        if (completionRevealRunning) {
-            return;
-        }
-
-        completionRevealRunning = true;
-
-        int height = session.getPuzzle().getHeight();
-        int width = session.getPuzzle().getWidth();
-        ParallelTransition master = new ParallelTransition();
-
-        for (int row = 0; row < height; row++) {
-            ParallelTransition rowPulse = new ParallelTransition();
-
-            for (int col = 0; col < width; col++) {
-                boolean shouldBeFilled = session.getPuzzle().getSolution()[row][col];
-                rowPulse.getChildren().add(createVictoryPulse(cellUis[row][col], shouldBeFilled));
-            }
-
-            PauseTransition delay = new PauseTransition(Duration.millis(row * 55L));
-            master.getChildren().add(new SequentialTransition(delay, rowPulse));
-        }
-
-        PauseTransition finish = new PauseTransition(Duration.millis(Math.max(450, (height - 1) * 55L + 260)));
-        finish.setOnFinished(event -> {
-            completionRevealRunning = false;
-            if (onFinished != null) {
-                onFinished.run();
-            }
-        });
-
-        master.getChildren().add(finish);
-        master.play();
-    }
-
-    private SequentialTransition createVictoryPulse(CellUI cell, boolean filled) {
-        Color baseColor = (Color) cell.rectangle.getFill();
-        Color accent = filled ? VICTORY_FILLED_ACCENT : VICTORY_EMPTY_ACCENT;
-        double scalePeak = filled ? 1.08 : 1.03;
-
-        FillTransition brighten = new FillTransition(Duration.millis(110), cell.rectangle);
-        brighten.setFromValue(baseColor);
-        brighten.setToValue(accent);
-
-        FillTransition normalize = new FillTransition(Duration.millis(140), cell.rectangle);
-        normalize.setFromValue(accent);
-        normalize.setToValue(baseColor);
-
-        ScaleTransition grow = new ScaleTransition(Duration.millis(110), cell.root);
-        grow.setFromX(1.0);
-        grow.setFromY(1.0);
-        grow.setToX(scalePeak);
-        grow.setToY(scalePeak);
-
-        ScaleTransition shrink = new ScaleTransition(Duration.millis(140), cell.root);
-        shrink.setFromX(scalePeak);
-        shrink.setFromY(scalePeak);
-        shrink.setToX(1.0);
-        shrink.setToY(1.0);
-
-        return new SequentialTransition(
-                new ParallelTransition(brighten, grow),
-                new ParallelTransition(normalize, shrink)
-        );
-    }
-
     public void refreshBoardVisuals() {
         int height = session.getPuzzle().getHeight();
         int width = session.getPuzzle().getWidth();
 
         for (int row = 0; row < height; row++) {
             for (int col = 0; col < width; col++) {
-                updateCellVisual(row, col);
+                updateCellVisual(row, col, false);
             }
         }
     }
 
-    private void updateCellVisual(int row, int col) {
+    private void updateCellVisual(int row, int col, boolean immediate) {
         CellUI cellUI = cellUis[row][col];
         CellState state = session.getGameState().getCell(row, col);
 
@@ -371,7 +310,7 @@ public class BoardView extends GridPane {
         boolean rowHovered = row == session.getHoveredRow();
         boolean colHovered = col == session.getHoveredCol();
         boolean intersection = rowHovered && colHovered;
-        boolean highlighted = rowHovered || colHovered;
+        boolean hoveredLine = rowHovered || colHovered;
 
         Color emptyColor = EMPTY_COLOR;
         Color filledColor = FILLED_COLOR;
@@ -382,28 +321,177 @@ public class BoardView extends GridPane {
         } else if (intersection) {
             emptyColor = INTERSECTION_EMPTY_COLOR;
             filledColor = INTERSECTION_FILLED_COLOR;
-        } else if (highlighted) {
-            emptyColor = LINE_HOVER_EMPTY_COLOR;
-            filledColor = LINE_HOVER_FILLED_COLOR;
+        } else if (hoveredLine) {
+            emptyColor = HOVER_EMPTY_COLOR;
+            filledColor = HOVER_FILLED_COLOR;
         }
 
-        switch (state) {
-            case EMPTY -> {
-                cellUI.rectangle.setFill(emptyColor);
-                cellUI.text.setText("");
-                cellUI.text.setFill(CROSS_COLOR);
+        Color targetFill = state == CellState.FILLED ? filledColor : emptyColor;
+        String targetText = state == CellState.CROSSED ? "✕" : "";
+
+        boolean stateChanged = cellUI.lastState != state;
+        boolean fillChanged = !targetFill.equals(cellUI.lastFill);
+
+        if (stateChanged) {
+            switch (state) {
+                case FILLED -> animateFillPlacement(cellUI, targetFill);
+                case CROSSED -> animateCrossPlacement(cellUI, targetFill);
+                case EMPTY -> {
+                    cellUI.text.setText("");
+                    cellUI.text.setOpacity(1.0);
+                    cellUI.text.setScaleX(1.0);
+                    cellUI.text.setScaleY(1.0);
+                    setRectangleFill(cellUI.rectangle, targetFill, immediate);
+                }
             }
-            case FILLED -> {
-                cellUI.rectangle.setFill(filledColor);
-                cellUI.text.setText("");
-                cellUI.text.setFill(CROSS_COLOR);
+        } else {
+            if (fillChanged) {
+                setRectangleFill(cellUI.rectangle, targetFill, immediate);
             }
-            case CROSSED -> {
-                cellUI.rectangle.setFill(emptyColor);
-                cellUI.text.setText("✕");
-                cellUI.text.setFill(CROSS_COLOR);
+            if (!targetText.equals(cellUI.text.getText())) {
+                cellUI.text.setText(targetText);
             }
         }
+
+        if (state != CellState.CROSSED) {
+            cellUI.text.setText("");
+            cellUI.text.setOpacity(1.0);
+            cellUI.text.setScaleX(1.0);
+            cellUI.text.setScaleY(1.0);
+        } else {
+            cellUI.text.setFill(CROSS_COLOR);
+        }
+
+        cellUI.lastState = state;
+        cellUI.lastFill = targetFill;
+    }
+
+    private void setRectangleFill(Rectangle rectangle, Color targetFill, boolean immediate) {
+        Color current = (Color) rectangle.getFill();
+
+        if (immediate || current == null || current.equals(targetFill)) {
+            rectangle.setFill(targetFill);
+            return;
+        }
+
+        FillTransition transition = new FillTransition(Duration.millis(110), rectangle, current, targetFill);
+        transition.play();
+    }
+
+    private void animateFillPlacement(CellUI cellUI, Color targetFill) {
+        Color current = (Color) cellUI.rectangle.getFill();
+        if (current == null) {
+            current = EMPTY_COLOR;
+        }
+
+        FillTransition fillTransition = new FillTransition(Duration.millis(110), cellUI.rectangle, current, targetFill);
+
+        ScaleTransition grow = new ScaleTransition(Duration.millis(95), cellUI.root);
+        grow.setFromX(1.0);
+        grow.setFromY(1.0);
+        grow.setToX(1.08);
+        grow.setToY(1.08);
+
+        ScaleTransition settle = new ScaleTransition(Duration.millis(110), cellUI.root);
+        settle.setFromX(1.08);
+        settle.setFromY(1.08);
+        settle.setToX(1.0);
+        settle.setToY(1.0);
+
+        new ParallelTransition(fillTransition, new SequentialTransition(grow, settle)).play();
+    }
+
+    private void animateCrossPlacement(CellUI cellUI, Color targetFill) {
+        Color current = (Color) cellUI.rectangle.getFill();
+        if (current == null) {
+            current = EMPTY_COLOR;
+        }
+
+        cellUI.text.setText("✕");
+        cellUI.text.setFill(CROSS_COLOR);
+        cellUI.text.setOpacity(0.0);
+        cellUI.text.setScaleX(0.55);
+        cellUI.text.setScaleY(0.55);
+
+        FillTransition fillTransition = new FillTransition(Duration.millis(90), cellUI.rectangle, current, targetFill);
+
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(120), cellUI.text);
+        fadeIn.setFromValue(0.0);
+        fadeIn.setToValue(1.0);
+
+        ScaleTransition grow = new ScaleTransition(Duration.millis(120), cellUI.text);
+        grow.setFromX(0.55);
+        grow.setFromY(0.55);
+        grow.setToX(1.0);
+        grow.setToY(1.0);
+
+        new ParallelTransition(fillTransition, fadeIn, grow).play();
+    }
+
+    public void playVictoryReveal(Runnable onFinished) {
+        if (victoryAnimationRunning) {
+            return;
+        }
+
+        victoryAnimationRunning = true;
+
+        int height = session.getPuzzle().getHeight();
+        int width = session.getPuzzle().getWidth();
+        int centerRow = height / 2;
+        int centerCol = width / 2;
+
+        ParallelTransition master = new ParallelTransition();
+        long maxDelay = 0L;
+
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                CellUI cell = cellUis[row][col];
+                boolean filled = session.getPuzzle().getSolution()[row][col];
+
+                Color baseColor = (Color) cell.rectangle.getFill();
+                Color flashColor = filled ? VICTORY_FILLED_FLASH : VICTORY_EMPTY_FLASH;
+                double pulseScale = filled ? 1.10 : 1.05;
+
+                long delayMillis = 45L * (Math.abs(row - centerRow) + Math.abs(col - centerCol));
+                if (delayMillis > maxDelay) {
+                    maxDelay = delayMillis;
+                }
+
+                FillTransition brighten = new FillTransition(Duration.millis(130), cell.rectangle, baseColor, flashColor);
+                FillTransition normalize = new FillTransition(Duration.millis(180), cell.rectangle, flashColor, baseColor);
+
+                ScaleTransition grow = new ScaleTransition(Duration.millis(130), cell.root);
+                grow.setFromX(1.0);
+                grow.setFromY(1.0);
+                grow.setToX(pulseScale);
+                grow.setToY(pulseScale);
+
+                ScaleTransition shrink = new ScaleTransition(Duration.millis(180), cell.root);
+                shrink.setFromX(pulseScale);
+                shrink.setFromY(pulseScale);
+                shrink.setToX(1.0);
+                shrink.setToY(1.0);
+
+                SequentialTransition pulse = new SequentialTransition(
+                        new ParallelTransition(brighten, grow),
+                        new ParallelTransition(normalize, shrink)
+                );
+
+                PauseTransition delay = new PauseTransition(Duration.millis(delayMillis));
+                master.getChildren().add(new SequentialTransition(delay, pulse));
+            }
+        }
+
+        PauseTransition finish = new PauseTransition(Duration.millis(maxDelay + 340));
+        finish.setOnFinished(event -> {
+            victoryAnimationRunning = false;
+            if (onFinished != null) {
+                onFinished.run();
+            }
+        });
+
+        master.getChildren().add(finish);
+        master.play();
     }
 
     public interface EndStateListener {
@@ -418,12 +506,16 @@ public class BoardView extends GridPane {
         private final Rectangle rectangle;
         private final Rectangle flashOverlay;
         private final Text text;
+        private CellState lastState;
+        private Color lastFill;
 
         private CellUI(StackPane root, Rectangle rectangle, Rectangle flashOverlay, Text text) {
             this.root = root;
             this.rectangle = rectangle;
             this.flashOverlay = flashOverlay;
             this.text = text;
+            this.lastState = null;
+            this.lastFill = null;
         }
     }
 }
