@@ -1,0 +1,176 @@
+.app-root {
+    -fx-background-color: #F5F6FA;
+}
+
+.top-bar {
+    -fx-padding: 0 0 20 0;
+}
+
+.top-bar-left,
+.top-bar-center,
+.top-bar-right {
+    -fx-alignment: center;
+}
+
+.screen-title {
+    -fx-font-size: 30px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #1F2937;
+}
+
+.hearts-box {
+    -fx-alignment: center;
+}
+
+.heart-full {
+    -fx-font-size: 22px;
+    -fx-text-fill: #E74C3C;
+}
+
+.heart-empty {
+    -fx-font-size: 22px;
+    -fx-text-fill: #D6D9E0;
+}
+
+.button {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 8 16;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-cursor: hand;
+}
+
+.primary-button {
+    -fx-background-color: #4A90E2;
+    -fx-text-fill: white;
+    -fx-border-color: transparent;
+}
+
+.primary-button:hover {
+    -fx-background-color: #357ABD;
+}
+
+.secondary-button {
+    -fx-background-color: #E5E9F2;
+    -fx-text-fill: #2F3640;
+    -fx-border-color: #D5DBE7;
+}
+
+.secondary-button:hover {
+    -fx-background-color: #DCE2EC;
+}
+
+.toggle-button {
+    -fx-background-color: #4A90E2;
+    -fx-text-fill: white;
+}
+
+.toggle-button:hover {
+    -fx-background-color: #357ABD;
+}
+
+.puzzle-card {
+    -fx-background-color: white;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 24 28 28 28;
+    -fx-effect: dropshadow(gaussian, rgba(31,41,55,0.12), 18, 0.20, 0, 4);
+}
+
+.game-center {
+    -fx-alignment: center;
+}
+
+.clue-label {
+    -fx-font-weight: 700;
+}
+
+.menu-header {
+    -fx-alignment: center;
+    -fx-padding: 0 0 18 0;
+}
+
+.menu-title {
+    -fx-font-size: 30px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #1F2937;
+}
+
+.menu-subtitle {
+    -fx-font-size: 14px;
+    -fx-text-fill: #6B7280;
+}
+
+.filter-group {
+    -fx-pref-width: 220;
+}
+
+.filter-label {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #4B5563;
+}
+
+.combo-box {
+    -fx-background-color: white;
+    -fx-border-color: #D5DBE7;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-padding: 2 4;
+}
+
+.combo-box:hover {
+    -fx-border-color: #BFC8D8;
+}
+
+.menu-list {
+    -fx-alignment: top-center;
+}
+
+.menu-scroll,
+.menu-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.menu-card {
+    -fx-background-color: white;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-border-color: #E4E8F0;
+    -fx-padding: 14;
+    -fx-effect: dropshadow(gaussian, rgba(31,41,55,0.06), 12, 0.12, 0, 2);
+}
+
+.puzzle-button {
+    -fx-pref-width: 360;
+}
+
+.menu-meta {
+    -fx-font-size: 12px;
+    -fx-text-fill: #6B7280;
+}
+
+.overlay-backdrop {
+    -fx-background-color: rgba(17, 24, 39, 0.22);
+}
+
+.overlay-card {
+    -fx-background-color: white;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: #D5DBE7;
+    -fx-padding: 28;
+    -fx-effect: dropshadow(gaussian, rgba(31,41,55,0.18), 18, 0.18, 0, 4);
+}
+
+.overlay-title {
+    -fx-font-size: 24px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #1F2937;
+}
+
+.overlay-subtitle {
+    -fx-font-size: 15px;
+    -fx-text-fill: #6B7280;
+}

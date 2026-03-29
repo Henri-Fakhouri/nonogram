@@ -1,0 +1,15 @@
+{
+  "id": "puzzle_002",
+  "title": "Cross",
+  "width": 5,
+  "height": 5,
+  "pack": "Symbols",
+  "difficulty": "Easy",
+  "solution": [
+    [false, false, true, false, false],
+    [false, false, true, false, false],
+    [true, true, true, true, true],
+    [false, false, true, false, false],
+    [false, false, true, false, false]
+  ]
+}
