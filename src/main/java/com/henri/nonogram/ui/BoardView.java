@@ -2,6 +2,7 @@ package com.henri.nonogram.ui;
 
 import com.henri.nonogram.model.CellState;
 import com.henri.nonogram.model.Puzzle;
+import javafx.animation.PauseTransition;
 import javafx.geometry.Pos;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
@@ -10,6 +11,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
+import javafx.util.Duration;
 
 public class BoardView extends GridPane {
 
@@ -19,6 +21,7 @@ public class BoardView extends GridPane {
     private static final int OUTER_BORDER_WIDTH = 2;
     private static final int MINOR_GRID_WIDTH = 1;
     private static final int MAJOR_GRID_WIDTH = 3;
+    private static final int HEART_LOSS_END_STATE_DELAY_MS = 360;
 
     private static final Color EMPTY_COLOR = Color.web("#FFFFFF");
     private static final Color FILLED_COLOR = Color.web("#2F3640");
@@ -182,13 +185,34 @@ public class BoardView extends GridPane {
     }
 
     private void applyDragAction(int row, int col) {
+        if (dragMode == null) {
+            return;
+        }
+
         GameActionResult result = session.applyAction(dragMode, row, col);
 
-        if (result.isSolved()) {
-            endStateListener.onVictory();
-        } else if (result.isGameOver()) {
-            endStateListener.onGameOver();
+        boolean stopContinuousInput = result.isHeartLost() || result.isSolved() || result.isGameOver();
+        if (stopContinuousInput) {
+            dragMode = null;
+            session.endAction();
         }
+
+        if (result.isSolved()) {
+            fireEndState(() -> endStateListener.onVictory(), result.isHeartLost());
+        } else if (result.isGameOver()) {
+            fireEndState(() -> endStateListener.onGameOver(), result.isHeartLost());
+        }
+    }
+
+    private void fireEndState(Runnable action, boolean delayForHeartAnimation) {
+        if (!delayForHeartAnimation) {
+            action.run();
+            return;
+        }
+
+        PauseTransition pause = new PauseTransition(Duration.millis(HEART_LOSS_END_STATE_DELAY_MS));
+        pause.setOnFinished(event -> action.run());
+        pause.play();
     }
 
     public void refreshBoardVisuals() {

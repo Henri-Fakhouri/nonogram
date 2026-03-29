@@ -86,9 +86,9 @@ public class GeneratedPuzzleService {
                 + difficulty.name().toLowerCase() + "_" + seed + "_" + attempt + "_" + Long.toUnsignedString(hash, 36);
     }
 
-    private String buildTitle(GeneratedDifficulty difficulty, int width, int height, long seed) {
-        return "Endless " + difficulty.getDisplayName() + " " + width + "x" + height + " - #" + Long.toUnsignedString(seed, 36);
-    }
+private String buildTitle(GeneratedDifficulty difficulty, int width, int height, long seed) {
+    return "Endless " + difficulty.getDisplayName() + " " + width + "x" + height;
+}
 
     private boolean[][] buildCandidateGrid(int width, int height, GeneratedDifficulty difficulty, long seed, int attempt) {
         Random random = new Random(seed ^ (0x9E3779B97F4A7C15L * (attempt + 1L)));
@@ -126,10 +126,16 @@ public class GeneratedPuzzleService {
 
         double threshold = chooseThreshold(field, difficulty);
         boolean[][] grid = threshold(field, threshold);
+
         cleanupGrid(grid, difficulty);
         ensureNotEmptyOrFull(grid, random);
         retainLargestComponent(grid);
         cleanupGrid(grid, difficulty);
+
+        // Hard guarantee:
+        // generated puzzles must never contain a fully empty row or column.
+        ensureNoEmptyRowsOrColumns(grid, random);
+
         return grid;
     }
 
@@ -286,6 +292,120 @@ public class GeneratedPuzzleService {
         } else if (filled == width * height) {
             grid[random.nextInt(height)][random.nextInt(width)] = false;
         }
+    }
+
+    private void ensureNoEmptyRowsOrColumns(boolean[][] grid, Random random) {
+        int height = grid.length;
+        int width = grid[0].length;
+
+        for (int row = 0; row < height; row++) {
+            if (countFilledInRow(grid, row) == 0) {
+                int col = chooseBestColumnForEmptyRow(grid, row, random);
+                grid[row][col] = true;
+            }
+        }
+
+        for (int col = 0; col < width; col++) {
+            if (countFilledInColumn(grid, col) == 0) {
+                int row = chooseBestRowForEmptyColumn(grid, col, random);
+                grid[row][col] = true;
+            }
+        }
+    }
+
+    private int chooseBestColumnForEmptyRow(boolean[][] grid, int row, Random random) {
+        int width = grid[0].length;
+        int bestScore = Integer.MIN_VALUE;
+        List<Integer> bestColumns = new ArrayList<>();
+
+        for (int col = 0; col < width; col++) {
+            int score = scorePlacement(grid, row, col);
+
+            if (countFilledInColumn(grid, col) > 0) {
+                score += 4;
+            }
+
+            if ((row > 0 && grid[row - 1][col]) || (row + 1 < grid.length && grid[row + 1][col])) {
+                score += 3;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestColumns.clear();
+                bestColumns.add(col);
+            } else if (score == bestScore) {
+                bestColumns.add(col);
+            }
+        }
+
+        return bestColumns.get(random.nextInt(bestColumns.size()));
+    }
+
+    private int chooseBestRowForEmptyColumn(boolean[][] grid, int col, Random random) {
+        int height = grid.length;
+        int bestScore = Integer.MIN_VALUE;
+        List<Integer> bestRows = new ArrayList<>();
+
+        for (int row = 0; row < height; row++) {
+            int score = scorePlacement(grid, row, col);
+
+            if (countFilledInRow(grid, row) > 0) {
+                score += 4;
+            }
+
+            if ((col > 0 && grid[row][col - 1]) || (col + 1 < grid[0].length && grid[row][col + 1])) {
+                score += 3;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestRows.clear();
+                bestRows.add(row);
+            } else if (score == bestScore) {
+                bestRows.add(row);
+            }
+        }
+
+        return bestRows.get(random.nextInt(bestRows.size()));
+    }
+
+    private int scorePlacement(boolean[][] grid, int row, int col) {
+        int score = countFilledNeighbors(grid, row, col) * 2;
+
+        if (row > 0 && grid[row - 1][col]) {
+            score += 2;
+        }
+        if (row + 1 < grid.length && grid[row + 1][col]) {
+            score += 2;
+        }
+        if (col > 0 && grid[row][col - 1]) {
+            score += 2;
+        }
+        if (col + 1 < grid[0].length && grid[row][col + 1]) {
+            score += 2;
+        }
+
+        return score;
+    }
+
+    private int countFilledInRow(boolean[][] grid, int row) {
+        int count = 0;
+        for (int col = 0; col < grid[row].length; col++) {
+            if (grid[row][col]) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private int countFilledInColumn(boolean[][] grid, int col) {
+        int count = 0;
+        for (boolean[] row : grid) {
+            if (row[col]) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private void retainLargestComponent(boolean[][] grid) {

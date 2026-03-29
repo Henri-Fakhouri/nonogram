@@ -1,6 +1,9 @@
 package com.henri.nonogram.ui;
 
 import com.henri.nonogram.model.Puzzle;
+import javafx.animation.FadeTransition;
+import javafx.animation.ParallelTransition;
+import javafx.animation.ScaleTransition;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -19,6 +22,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.util.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +52,7 @@ public class GameView extends BorderPane {
     private Button modeButton;
     private HBox heartsBox;
     private StackPane centerStack;
+    private int lastRenderedHearts = -1;
 
     public GameView(Puzzle puzzle, Runnable onBack, Runnable onNextPuzzle) {
         this.session = new GameSession(puzzle);
@@ -88,6 +93,7 @@ public class GameView extends BorderPane {
         });
 
         buildLayout();
+        lastRenderedHearts = session.getHeartsRemaining();
         refreshAllUi();
 
         if (session.isSolved()) {
@@ -129,7 +135,7 @@ public class GameView extends BorderPane {
     private void buildLayout() {
         setPadding(new Insets(24));
 
-        HBox topBar = createTopBar();
+        StackPane topBar = createTopBar();
         GridPane puzzleArea = createPuzzleArea();
 
         StackPane puzzleCard = new StackPane(puzzleArea);
@@ -145,17 +151,26 @@ public class GameView extends BorderPane {
         setCenter(centerStack);
     }
 
-    private HBox createTopBar() {
+    private StackPane createTopBar() {
         Button backButton = new Button("Back");
         backButton.getStyleClass().addAll("button", "secondary-button");
         backButton.setOnAction(e -> onBack.run());
 
         Label titleLabel = new Label(session.getPuzzle().getTitle());
         titleLabel.getStyleClass().add("screen-title");
+        titleLabel.setAlignment(Pos.CENTER);
+        titleLabel.setMaxWidth(Double.MAX_VALUE);
 
-        heartsBox = new HBox(6);
+        heartsBox = new HBox(10);
         heartsBox.getStyleClass().add("hearts-box");
         heartsBox.setAlignment(Pos.CENTER);
+
+        VBox titleBlock = new VBox(4, titleLabel, heartsBox);
+        titleBlock.getStyleClass().add("top-bar-center");
+        titleBlock.setAlignment(Pos.CENTER);
+        titleBlock.setFillWidth(true);
+        titleBlock.setPickOnBounds(false);
+        titleBlock.setMouseTransparent(true);
 
         modeButton = new Button();
         modeButton.getStyleClass().addAll("button", "primary-button", "toggle-button");
@@ -176,23 +191,19 @@ public class GameView extends BorderPane {
         leftBox.getStyleClass().add("top-bar-left");
         leftBox.setAlignment(Pos.CENTER_LEFT);
 
-        HBox centerBox = new HBox(12, titleLabel, heartsBox);
-        centerBox.getStyleClass().add("top-bar-center");
-        centerBox.setAlignment(Pos.CENTER);
-
         HBox rightBox = new HBox(10, modeButton, restartButton);
         rightBox.getStyleClass().add("top-bar-right");
         rightBox.setAlignment(Pos.CENTER_RIGHT);
 
-        Region spacerLeft = new Region();
-        Region spacerRight = new Region();
-        HBox.setHgrow(spacerLeft, Priority.ALWAYS);
-        HBox.setHgrow(spacerRight, Priority.ALWAYS);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox topBar = new HBox(18, leftBox, spacerLeft, centerBox, spacerRight, rightBox);
+        HBox overlayBar = new HBox(18, leftBox, spacer, rightBox);
+        overlayBar.setAlignment(Pos.CENTER);
+
+        StackPane topBar = new StackPane(overlayBar, titleBlock);
         topBar.getStyleClass().add("top-bar");
-        topBar.setAlignment(Pos.CENTER);
-        topBar.setPadding(new Insets(0, 0, 20, 0));
+        topBar.setPadding(new Insets(0, 0, 24, 0));
 
         return topBar;
     }
@@ -351,13 +362,86 @@ public class GameView extends BorderPane {
     }
 
     private void refreshHearts() {
+        int currentHearts = session.getHeartsRemaining();
+        boolean initialRender = heartsBox.getChildren().isEmpty();
+
+        if (!initialRender && currentHearts == lastRenderedHearts) {
+            return;
+        }
+
+        int lostHeartIndex = lastRenderedHearts > currentHearts ? currentHearts : -1;
+
         heartsBox.getChildren().clear();
 
         for (int i = 0; i < session.getMaxHearts(); i++) {
-            Label heart = new Label(i < session.getHeartsRemaining() ? "❤" : "♡");
-            heart.getStyleClass().add(i < session.getHeartsRemaining() ? "heart-full" : "heart-empty");
+            Label heart = new Label();
+            heart.setMinWidth(28);
+            heart.setPrefWidth(28);
+            heart.setAlignment(Pos.CENTER);
+
+            if (i < currentHearts) {
+                heart.setText("❤");
+                applyHeartStyle(heart, true);
+            } else if (i == lostHeartIndex) {
+                heart.setText("❤");
+                applyHeartStyle(heart, true);
+            } else {
+                heart.setText("♡");
+                applyHeartStyle(heart, false);
+            }
+
             heartsBox.getChildren().add(heart);
+
+            if (i == lostHeartIndex) {
+                animateLostHeart(heart);
+            }
         }
+
+        lastRenderedHearts = currentHearts;
+    }
+
+    private void applyHeartStyle(Label heart, boolean filled) {
+        if (filled) {
+            heart.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #E25555;");
+            heart.setOpacity(1.0);
+        } else {
+            heart.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #D6DAE1;");
+            heart.setOpacity(0.8);
+        }
+    }
+
+    private void animateLostHeart(Label heart) {
+        ScaleTransition shrink = new ScaleTransition(Duration.millis(160), heart);
+        shrink.setFromX(1.0);
+        shrink.setFromY(1.0);
+        shrink.setToX(0.25);
+        shrink.setToY(0.25);
+
+        FadeTransition fadeOut = new FadeTransition(Duration.millis(160), heart);
+        fadeOut.setFromValue(1.0);
+        fadeOut.setToValue(0.15);
+
+        ParallelTransition disappear = new ParallelTransition(shrink, fadeOut);
+        disappear.setOnFinished(event -> {
+            heart.setText("♡");
+            applyHeartStyle(heart, false);
+            heart.setScaleX(0.35);
+            heart.setScaleY(0.35);
+            heart.setOpacity(0.15);
+
+            ScaleTransition grow = new ScaleTransition(Duration.millis(180), heart);
+            grow.setFromX(0.35);
+            grow.setFromY(0.35);
+            grow.setToX(1.0);
+            grow.setToY(1.0);
+
+            FadeTransition fadeIn = new FadeTransition(Duration.millis(180), heart);
+            fadeIn.setFromValue(0.15);
+            fadeIn.setToValue(0.8);
+
+            new ParallelTransition(grow, fadeIn).play();
+        });
+        disappear.play();
     }
 
     private void refreshClueVisuals() {
