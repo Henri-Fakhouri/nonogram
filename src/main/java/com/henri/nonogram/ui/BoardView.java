@@ -31,22 +31,23 @@ public class BoardView extends GridPane {
     private static final int HEART_LOSS_END_STATE_DELAY_MS = 340;
 
     private static final Color EMPTY_COLOR = Color.web("#FFFFFF");
-    private static final Color FILLED_COLOR = Color.web("#2F3640");
+    private static final Color FILLED_COLOR = Color.web("#3F556F");
 
-    private static final Color HOVER_EMPTY_COLOR = Color.web("#EEF5FF");
-    private static final Color HOVER_FILLED_COLOR = Color.web("#33404D");
+    private static final Color HOVER_EMPTY_COLOR = Color.web("#EDF4FB");
+    private static final Color HOVER_FILLED_COLOR = Color.web("#365274");
 
-    private static final Color INTERSECTION_EMPTY_COLOR = Color.web("#DCEBFF");
-    private static final Color INTERSECTION_FILLED_COLOR = Color.web("#25303B");
+    private static final Color INTERSECTION_EMPTY_COLOR = Color.web("#E2ECF8");
+    private static final Color INTERSECTION_FILLED_COLOR = Color.web("#2D486C");
 
-    private static final Color COMPLETED_EMPTY_COLOR = Color.web("#ECECEC");
-    private static final Color COMPLETED_FILLED_COLOR = Color.web("#66707C");
+    private static final Color COMPLETED_EMPTY_COLOR = Color.web("#EFF4FA");
+    private static final Color COMPLETED_FILLED_COLOR = Color.web("#7E94AF");
 
-    private static final Color VICTORY_FILLED_FLASH = Color.web("#8FA9C6");
-    private static final Color VICTORY_EMPTY_FLASH = Color.web("#F4F8FF");
+    private static final Color VICTORY_FILLED_FLASH = Color.web("#9AB2CF");
+    private static final Color VICTORY_EMPTY_FLASH = Color.web("#F1F6FD");
 
-    private static final Color CROSS_COLOR = Color.web("#7F8C8D");
-    private static final String BORDER_COLOR = "#333333";
+    private static final Color CROSS_COLOR = Color.web("#111111");
+    private static final Color WRONG_CROSS_COLOR = Color.web("#E25555");
+    private static final String BORDER_COLOR = "#2D2D2D";
 
     private final GameSession session;
     private final Runnable onVisualStateChanged;
@@ -249,6 +250,10 @@ public class BoardView extends GridPane {
     private void playWrongMoveFeedback(int row, int col) {
         CellUI cell = cellUis[row][col];
 
+        if (session.getGameState().getCell(row, col) == CellState.CROSSED) {
+            cell.wrongCrossUntilEpochMillis = System.currentTimeMillis() + 900L;
+        }
+
         FadeTransition flashIn = new FadeTransition(Duration.millis(70), cell.flashOverlay);
         flashIn.setFromValue(0.0);
         flashIn.setToValue(0.92);
@@ -283,6 +288,12 @@ public class BoardView extends GridPane {
                 createShakeStep(0, 35)
         );
         boardShake.play();
+
+        if (cell.wrongCrossUntilEpochMillis > 0L) {
+            PauseTransition holdRedCross = new PauseTransition(Duration.millis(920));
+            holdRedCross.setOnFinished(event -> refreshBoardVisuals());
+            holdRedCross.play();
+        }
     }
 
     private TranslateTransition createShakeStep(double targetX, int millis) {
@@ -305,6 +316,10 @@ public class BoardView extends GridPane {
     private void updateCellVisual(int row, int col, boolean immediate) {
         CellUI cellUI = cellUis[row][col];
         CellState state = session.getGameState().getCell(row, col);
+
+        if (state != CellState.CROSSED) {
+            cellUI.wrongCrossUntilEpochMillis = 0L;
+        }
 
         boolean rowComplete = session.isRowComplete(row);
         boolean colComplete = session.isColumnComplete(col);
@@ -331,6 +346,9 @@ public class BoardView extends GridPane {
 
         Color targetFill = state == CellState.FILLED ? filledColor : emptyColor;
         String targetText = state == CellState.CROSSED ? "✕" : "";
+        Color crossTextColor = cellUI.wrongCrossUntilEpochMillis > System.currentTimeMillis()
+                ? WRONG_CROSS_COLOR
+                : CROSS_COLOR;
 
         boolean stateChanged = cellUI.lastState != state;
         boolean fillChanged = !targetFill.equals(cellUI.lastFill);
@@ -338,7 +356,7 @@ public class BoardView extends GridPane {
         if (stateChanged) {
             switch (state) {
                 case FILLED -> animateFillPlacement(cellUI, targetFill);
-                case CROSSED -> animateCrossPlacement(cellUI, targetFill);
+                case CROSSED -> animateCrossPlacement(cellUI, targetFill, crossTextColor);
                 case EMPTY -> {
                     cellUI.text.setText("");
                     cellUI.text.setOpacity(1.0);
@@ -362,7 +380,7 @@ public class BoardView extends GridPane {
             cellUI.text.setScaleX(1.0);
             cellUI.text.setScaleY(1.0);
         } else {
-            cellUI.text.setFill(CROSS_COLOR);
+            cellUI.text.setFill(crossTextColor);
         }
 
         cellUI.lastState = state;
@@ -404,14 +422,14 @@ public class BoardView extends GridPane {
         new ParallelTransition(fillTransition, new SequentialTransition(grow, settle)).play();
     }
 
-    private void animateCrossPlacement(CellUI cellUI, Color targetFill) {
+    private void animateCrossPlacement(CellUI cellUI, Color targetFill, Color crossTextColor) {
         Color current = (Color) cellUI.rectangle.getFill();
         if (current == null) {
             current = EMPTY_COLOR;
         }
 
         cellUI.text.setText("✕");
-        cellUI.text.setFill(CROSS_COLOR);
+        cellUI.text.setFill(crossTextColor);
         cellUI.text.setOpacity(0.0);
         cellUI.text.setScaleX(0.55);
         cellUI.text.setScaleY(0.55);
@@ -511,6 +529,7 @@ public class BoardView extends GridPane {
         private final Text text;
         private CellState lastState;
         private Color lastFill;
+        private long wrongCrossUntilEpochMillis;
 
         private CellUI(StackPane root, Rectangle rectangle, Rectangle flashOverlay, Text text) {
             this.root = root;
@@ -519,6 +538,7 @@ public class BoardView extends GridPane {
             this.text = text;
             this.lastState = null;
             this.lastFill = null;
+            this.wrongCrossUntilEpochMillis = 0L;
         }
     }
 }

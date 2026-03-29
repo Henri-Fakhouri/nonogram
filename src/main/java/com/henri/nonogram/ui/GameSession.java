@@ -287,6 +287,28 @@ public class GameSession {
         return true;
     }
 
+    public boolean[] getCompletedRowClues(int row) {
+        int width = getPuzzle().getWidth();
+        CellState[] line = new CellState[width];
+
+        for (int col = 0; col < width; col++) {
+            line[col] = gameState.getCell(row, col);
+        }
+
+        return computeCompletedClues(line, rowClues.get(row));
+    }
+
+    public boolean[] getCompletedColumnClues(int col) {
+        int height = getPuzzle().getHeight();
+        CellState[] line = new CellState[height];
+
+        for (int row = 0; row < height; row++) {
+            line[row] = gameState.getCell(row, col);
+        }
+
+        return computeCompletedClues(line, columnClues.get(col));
+    }
+
     public boolean isSolved() {
         boolean[][] solution = getPuzzle().getSolution();
         int height = getPuzzle().getHeight();
@@ -324,6 +346,57 @@ public class GameSession {
         }
 
         return snapshot;
+    }
+
+    private boolean[] computeCompletedClues(CellState[] line, List<Integer> clues) {
+        boolean[] completed = new boolean[clues.size()];
+
+        if (clues.isEmpty()) {
+            return completed;
+        }
+
+        int position = 0;
+
+        for (int clueIndex = 0; clueIndex < clues.size(); clueIndex++) {
+            while (position < line.length && line[position] == CellState.CROSSED) {
+                position++;
+            }
+
+            if (position >= line.length) {
+                break;
+            }
+
+            if (line[position] != CellState.FILLED) {
+                break;
+            }
+
+            int runStart = position;
+            while (position < line.length && line[position] == CellState.FILLED) {
+                position++;
+            }
+            int runLength = position - runStart;
+
+            if (runLength != clues.get(clueIndex)) {
+                break;
+            }
+
+            boolean terminatedByBoardEdge = position >= line.length;
+            boolean terminatedByConfirmedSeparator = !terminatedByBoardEdge && line[position] == CellState.CROSSED;
+
+            if (!terminatedByBoardEdge && !terminatedByConfirmedSeparator) {
+                break;
+            }
+
+            completed[clueIndex] = true;
+
+            if (terminatedByConfirmedSeparator) {
+                while (position < line.length && line[position] == CellState.CROSSED) {
+                    position++;
+                }
+            }
+        }
+
+        return completed;
     }
 
     private CellState resolveTargetState(MouseButton button) {

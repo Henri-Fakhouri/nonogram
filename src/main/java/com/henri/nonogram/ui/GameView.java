@@ -30,8 +30,12 @@ import java.util.List;
 
 public class GameView extends BorderPane {
 
-    private static final String CLUE_BOX_FILL = "#FFFFFF";
-    private static final String CLUE_BOX_BORDER = "#AEB9C9";
+    private static final String CLUE_BOX_FILL = "#F8FAFF";
+    private static final String CLUE_BOX_BORDER = "#BCCBDC";
+
+    private static final double MIN_PUZZLE_SCALE = 0.70;
+    private static final double MAX_PUZZLE_SCALE = 1.90;
+    private static final double PUZZLE_SCALE_MARGIN = 12.0;
 
     private final GameSession session;
     private final Runnable onBack;
@@ -49,10 +53,6 @@ public class GameView extends BorderPane {
 
     private final List<List<ClueCellUi>> rowClueCells = new ArrayList<>();
     private final List<List<ClueCellUi>> columnClueCells = new ArrayList<>();
-
-    private static final double MIN_PUZZLE_SCALE = 0.70;
-    private static final double MAX_PUZZLE_SCALE = 1.90;
-    private static final double PUZZLE_SCALE_MARGIN = 12.0;
 
     private Button modeButton;
     private HBox heartsBox;
@@ -403,7 +403,7 @@ public class GameView extends BorderPane {
         label.setPrefSize(width, height);
         label.setMaxSize(width, height);
         label.setAlignment(Pos.CENTER);
-        label.setTextFill(Color.web("#5A6270"));
+        label.setTextFill(Color.web("#2F466C"));
 
         StackPane cell = new StackPane(background, label);
         cell.setMinSize(width, height);
@@ -511,20 +511,24 @@ public class GameView extends BorderPane {
 
     private void refreshClueVisuals() {
         for (int row = 0; row < rowClueCells.size(); row++) {
-            boolean complete = session.isRowComplete(row);
+            boolean[] completedClues = session.getCompletedRowClues(row);
             boolean hovered = session.getHoveredRow() == row;
+            List<ClueCellUi> cells = rowClueCells.get(row);
 
-            for (ClueCellUi cell : rowClueCells.get(row)) {
-                applyClueStyle(cell, complete, hovered);
+            for (int i = 0; i < cells.size(); i++) {
+                boolean complete = i < completedClues.length && completedClues[i];
+                applyClueStyle(cells.get(i), complete, hovered);
             }
         }
 
         for (int col = 0; col < columnClueCells.size(); col++) {
-            boolean complete = session.isColumnComplete(col);
+            boolean[] completedClues = session.getCompletedColumnClues(col);
             boolean hovered = session.getHoveredCol() == col;
+            List<ClueCellUi> cells = columnClueCells.get(col);
 
-            for (ClueCellUi cell : columnClueCells.get(col)) {
-                applyClueStyle(cell, complete, hovered);
+            for (int i = 0; i < cells.size(); i++) {
+                boolean complete = i < completedClues.length && completedClues[i];
+                applyClueStyle(cells.get(i), complete, hovered);
             }
         }
     }
@@ -533,25 +537,25 @@ public class GameView extends BorderPane {
         int fontSize = Math.max(14, cellSize / 3);
 
         if (complete) {
-            animateClueBackground(cell.background, Color.web("#EEF1F4"));
-            cell.background.setStroke(Color.web("#C8CFDA"));
+            animateClueBackground(cell.background, Color.web("#EAF1F8"));
+            cell.background.setStroke(Color.web("#C7D5E7"));
             cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold;");
-            cell.label.setTextFill(Color.web("#9097A5"));
+            cell.label.setTextFill(Color.web("#7C93B3"));
             return;
         }
 
         if (hovered) {
-            animateClueBackground(cell.background, Color.rgb(74, 144, 226, 0.18));
-            cell.background.setStroke(Color.web("#7FA9E7"));
+            animateClueBackground(cell.background, Color.web("#E3ECF9"));
+            cell.background.setStroke(Color.web("#89A8D7"));
             cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold;");
-            cell.label.setTextFill(Color.web("#336DB4"));
+            cell.label.setTextFill(Color.web("#2E67A8"));
             return;
         }
 
         animateClueBackground(cell.background, Color.web(CLUE_BOX_FILL));
         cell.background.setStroke(Color.web(CLUE_BOX_BORDER));
         cell.label.setStyle("-fx-font-size: " + fontSize + "px; -fx-font-weight: bold;");
-        cell.label.setTextFill(Color.web("#5A6270"));
+        cell.label.setTextFill(Color.web("#2F466C"));
     }
 
     private void animateClueBackground(Rectangle rectangle, Color target) {
