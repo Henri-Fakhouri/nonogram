@@ -59,17 +59,15 @@ public class Main extends Application {
     private void initializeEndlessMode() {
         long baseSeed = System.currentTimeMillis();
 
-        recentSolutionHashes.put(GeneratedDifficulty.EASY, new ArrayDeque<>());
-        recentSolutionHashes.put(GeneratedDifficulty.MEDIUM, new ArrayDeque<>());
-        recentSolutionHashes.put(GeneratedDifficulty.HARD, new ArrayDeque<>());
+        for (GeneratedDifficulty difficulty : GeneratedDifficulty.values()) {
+            recentSolutionHashes.put(difficulty, new ArrayDeque<>());
+            long seedOffset = 11L + (difficulty.ordinal() * 18L);
+            endlessSeeds.put(difficulty, mix64(baseSeed + seedOffset));
+        }
 
-        endlessSeeds.put(GeneratedDifficulty.EASY, mix64(baseSeed + 11));
-        endlessSeeds.put(GeneratedDifficulty.MEDIUM, mix64(baseSeed + 29));
-        endlessSeeds.put(GeneratedDifficulty.HARD, mix64(baseSeed + 47));
-
-        endlessPreviewPuzzles.put(GeneratedDifficulty.EASY, createDistinctGeneratedPuzzle(GeneratedDifficulty.EASY));
-        endlessPreviewPuzzles.put(GeneratedDifficulty.MEDIUM, createDistinctGeneratedPuzzle(GeneratedDifficulty.MEDIUM));
-        endlessPreviewPuzzles.put(GeneratedDifficulty.HARD, createDistinctGeneratedPuzzle(GeneratedDifficulty.HARD));
+        for (GeneratedDifficulty difficulty : GeneratedDifficulty.values()) {
+            endlessPreviewPuzzles.put(difficulty, createDistinctGeneratedPuzzle(difficulty));
+        }
     }
 
     private void showMenu() {
@@ -139,9 +137,9 @@ public class Main extends Application {
     }
 
     private void addGeneratedPuzzles(List<Puzzle> puzzles) {
-        addPreviewIfPresent(puzzles, GeneratedDifficulty.EASY);
-        addPreviewIfPresent(puzzles, GeneratedDifficulty.MEDIUM);
-        addPreviewIfPresent(puzzles, GeneratedDifficulty.HARD);
+        for (GeneratedDifficulty difficulty : GeneratedDifficulty.values()) {
+            addPreviewIfPresent(puzzles, difficulty);
+        }
     }
 
     private void addPreviewIfPresent(List<Puzzle> puzzles, GeneratedDifficulty difficulty) {

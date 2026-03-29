@@ -42,7 +42,7 @@ public class GeneratedPuzzleService {
             }
 
             HumanDifficultySolver.DifficultyEstimate difficultyEstimate = difficultySolver.analyze(rowClues, columnClues);
-            if (!difficultyEstimate.isSolved()) {
+            if (!isAcceptableForDifficulty(difficulty, difficultyEstimate)) {
                 continue;
             }
 
@@ -98,24 +98,41 @@ private String buildTitle(GeneratedDifficulty difficulty, int width, int height,
             case EASY -> 3 + random.nextInt(2);
             case MEDIUM -> 4 + random.nextInt(2);
             case HARD -> 5 + random.nextInt(3);
+            case EXPERT -> 8 + random.nextInt(4);
         };
 
         for (int i = 0; i < blobCount; i++) {
             stampBlob(field, random, difficulty, true);
         }
 
-        int carveCount = difficulty == GeneratedDifficulty.EASY ? 0 : 1 + random.nextInt(2);
+        int carveCount = switch (difficulty) {
+            case EASY -> 0;
+            case MEDIUM, HARD -> 1 + random.nextInt(2);
+            case EXPERT -> 2 + random.nextInt(3);
+        };
         for (int i = 0; i < carveCount; i++) {
             stampBlob(field, random, difficulty, false);
         }
 
-        int smoothingSteps = difficulty == GeneratedDifficulty.EASY ? 2 : 1;
+        int smoothingSteps = switch (difficulty) {
+            case EASY -> 2;
+            case MEDIUM, HARD -> 1;
+            case EXPERT -> random.nextBoolean() ? 1 : 0;
+        };
         for (int i = 0; i < smoothingSteps; i++) {
             field = smooth(field);
         }
 
-        boolean mirrorVertically = difficulty != GeneratedDifficulty.HARD || random.nextBoolean();
-        boolean mirrorHorizontally = difficulty == GeneratedDifficulty.EASY && random.nextBoolean();
+        boolean mirrorVertically = switch (difficulty) {
+            case EASY, MEDIUM -> true;
+            case HARD -> random.nextBoolean();
+            case EXPERT -> random.nextInt(4) == 0;
+        };
+        boolean mirrorHorizontally = switch (difficulty) {
+            case EASY -> random.nextBoolean();
+            case MEDIUM -> random.nextInt(4) == 0;
+            case HARD, EXPERT -> false;
+        };
 
         if (mirrorVertically) {
             applyVerticalMirror(field);
@@ -149,11 +166,13 @@ private String buildTitle(GeneratedDifficulty difficulty, int width, int height,
             case EASY -> 1.6 + random.nextDouble() * 1.8;
             case MEDIUM -> 1.4 + random.nextDouble() * 1.7;
             case HARD -> 1.2 + random.nextDouble() * 1.5;
+            case EXPERT -> 1.8 + random.nextDouble() * 2.8;
         };
         double radiusCol = switch (difficulty) {
             case EASY -> 1.6 + random.nextDouble() * 1.8;
             case MEDIUM -> 1.4 + random.nextDouble() * 1.7;
             case HARD -> 1.2 + random.nextDouble() * 1.5;
+            case EXPERT -> 1.8 + random.nextDouble() * 2.8;
         };
         double intensity = additive ? (0.9 + random.nextDouble() * 0.9) : -(0.7 + random.nextDouble() * 0.7);
 
@@ -237,9 +256,8 @@ private String buildTitle(GeneratedDifficulty difficulty, int width, int height,
         values.sort(Comparator.naturalOrder());
 
         double percentile = switch (difficulty) {
-            case EASY -> 0.50;
-            case MEDIUM -> 0.50;
-            case HARD -> 0.50;
+            case EASY, MEDIUM, HARD -> 0.50;
+            case EXPERT -> 0.48;
         };
 
         int index = (int) Math.max(0, Math.min(values.size() - 1, Math.round((float) (values.size() * percentile))));
@@ -268,7 +286,9 @@ private String buildTitle(GeneratedDifficulty difficulty, int width, int height,
                 int filledNeighbors = countFilledNeighbors(copy, row, col);
                 if (copy[row][col] && filledNeighbors <= 1) {
                     grid[row][col] = false;
-                } else if (!copy[row][col] && filledNeighbors >= 6 && difficulty != GeneratedDifficulty.HARD) {
+                } else if (!copy[row][col]
+                        && filledNeighbors >= 6
+                        && (difficulty == GeneratedDifficulty.EASY || difficulty == GeneratedDifficulty.MEDIUM)) {
                     grid[row][col] = true;
                 }
             }
@@ -541,6 +561,8 @@ private String buildTitle(GeneratedDifficulty difficulty, int width, int height,
             score -= 40;
         } else if (difficulty == GeneratedDifficulty.EASY && (density < 0.28 || density > 0.55)) {
             score -= 20;
+        } else if (difficulty == GeneratedDifficulty.EXPERT && density >= 0.30 && density <= 0.58) {
+            score += 10;
         }
 
         score -= isolatedFilled * 8;
@@ -599,6 +621,15 @@ private String buildTitle(GeneratedDifficulty difficulty, int width, int height,
         return copy;
     }
 
+    private boolean isAcceptableForDifficulty(GeneratedDifficulty difficulty,
+                                             HumanDifficultySolver.DifficultyEstimate difficultyEstimate) {
+        if (difficultyEstimate.isSolved()) {
+            return true;
+        }
+
+        return difficulty == GeneratedDifficulty.EXPERT && difficultyEstimate.isUsedBacktracking();
+    }
+
     private static class Candidate {
         private final boolean[][] grid;
         private final int aestheticsScore;
@@ -618,6 +649,9 @@ private String buildTitle(GeneratedDifficulty difficulty, int width, int height,
                 scoreDistance = difficultyEstimate.getScore() - target.getMaxScore();
             } else {
                 scoreDistance = 0;
+            }
+            if (target == GeneratedDifficulty.EXPERT && !difficultyEstimate.isUsedBacktracking()) {
+                scoreDistance += 180;
             }
             return scoreDistance - aestheticsScore;
         }

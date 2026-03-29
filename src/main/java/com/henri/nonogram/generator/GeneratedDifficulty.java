@@ -3,7 +3,8 @@ package com.henri.nonogram.generator;
 public enum GeneratedDifficulty {
     EASY("Easy", 5, 5, 0, 140),
     MEDIUM("Medium", 8, 8, 141, 300),
-    HARD("Hard", 10, 10, 301, 700);
+    HARD("Hard", 10, 10, 301, 700),
+    EXPERT("Expert", 20, 20, 701, Integer.MAX_VALUE);
 
     private final String displayName;
     private final int defaultWidth;
@@ -40,7 +41,7 @@ public enum GeneratedDifficulty {
     }
 
     public boolean matchesScore(int score, boolean usedBacktracking) {
-        if (usedBacktracking) {
+        if (this != EXPERT && usedBacktracking) {
             return false;
         }
         return score >= minScore && score <= maxScore;

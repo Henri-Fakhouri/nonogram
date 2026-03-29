@@ -133,20 +133,7 @@ public class PuzzleSelectionView extends BorderPane {
         Label fastestLabel = new Label("Fastest clears");
         fastestLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #6A7381;");
 
-        HBox easy = buildStatLine(
-                GeneratedDifficulty.EASY.getDisplayName(),
-                formatFastest(playerStats.getFastestTimeForDifficulty(GeneratedDifficulty.EASY.getDisplayName()))
-        );
-        HBox medium = buildStatLine(
-                GeneratedDifficulty.MEDIUM.getDisplayName(),
-                formatFastest(playerStats.getFastestTimeForDifficulty(GeneratedDifficulty.MEDIUM.getDisplayName()))
-        );
-        HBox hard = buildStatLine(
-                GeneratedDifficulty.HARD.getDisplayName(),
-                formatFastest(playerStats.getFastestTimeForDifficulty(GeneratedDifficulty.HARD.getDisplayName()))
-        );
-
-        VBox card = new VBox(10, title, completed, streak, mistakes, fastestLabel, easy, medium, hard);
+        VBox card = new VBox(10, title, completed, streak, mistakes, fastestLabel);
         card.setAlignment(Pos.CENTER_LEFT);
         card.setMaxWidth(Double.MAX_VALUE);
         card.setStyle("""
@@ -156,6 +143,13 @@ public class PuzzleSelectionView extends BorderPane {
                 -fx-border-radius: 18;
                 -fx-padding: 16;
                 """);
+
+        for (GeneratedDifficulty difficulty : GeneratedDifficulty.values()) {
+            card.getChildren().add(buildStatLine(
+                    difficulty.getDisplayName(),
+                    formatFastest(playerStats.getFastestTimeForDifficulty(difficulty.getDisplayName()))
+            ));
+        }
 
         return card;
     }

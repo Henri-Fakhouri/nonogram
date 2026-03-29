@@ -50,9 +50,14 @@ public class GameView extends BorderPane {
     private final List<List<ClueCellUi>> rowClueCells = new ArrayList<>();
     private final List<List<ClueCellUi>> columnClueCells = new ArrayList<>();
 
+    private static final double MIN_PUZZLE_SCALE = 0.70;
+    private static final double MAX_PUZZLE_SCALE = 1.90;
+    private static final double PUZZLE_SCALE_MARGIN = 12.0;
+
     private Button modeButton;
     private HBox heartsBox;
     private StackPane centerStack;
+    private StackPane puzzleCard;
     private StackPane activeOverlay;
     private int lastRenderedHearts = -1;
     private boolean victorySequenceRunning = false;
@@ -148,7 +153,7 @@ public class GameView extends BorderPane {
         StackPane topBar = createTopBar();
         GridPane puzzleArea = createPuzzleArea();
 
-        StackPane puzzleCard = new StackPane(puzzleArea);
+        puzzleCard = new StackPane(puzzleArea);
         puzzleCard.getStyleClass().add("puzzle-card");
         puzzleCard.setAlignment(Pos.CENTER);
         puzzleCard.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
@@ -161,6 +166,48 @@ public class GameView extends BorderPane {
 
         setTop(topBar);
         setCenter(centerStack);
+
+        installResponsivePuzzleScaling();
+    }
+
+    private void installResponsivePuzzleScaling() {
+        centerStack.widthProperty().addListener((obs, oldValue, newValue) -> updatePuzzleScale());
+        centerStack.heightProperty().addListener((obs, oldValue, newValue) -> updatePuzzleScale());
+        puzzleCard.layoutBoundsProperty().addListener((obs, oldValue, newValue) -> updatePuzzleScale());
+
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                javafx.application.Platform.runLater(this::updatePuzzleScale);
+            }
+        });
+
+        javafx.application.Platform.runLater(this::updatePuzzleScale);
+    }
+
+    private void updatePuzzleScale() {
+        if (centerStack == null || puzzleCard == null) {
+            return;
+        }
+
+        double availableWidth = centerStack.getWidth() - PUZZLE_SCALE_MARGIN;
+        double availableHeight = centerStack.getHeight() - PUZZLE_SCALE_MARGIN;
+
+        if (availableWidth <= 0 || availableHeight <= 0) {
+            return;
+        }
+
+        double baseWidth = puzzleCard.getLayoutBounds().getWidth();
+        double baseHeight = puzzleCard.getLayoutBounds().getHeight();
+
+        if (baseWidth <= 0 || baseHeight <= 0) {
+            return;
+        }
+
+        double scale = Math.min(availableWidth / baseWidth, availableHeight / baseHeight);
+        scale = Math.max(MIN_PUZZLE_SCALE, Math.min(MAX_PUZZLE_SCALE, scale));
+
+        puzzleCard.setScaleX(scale);
+        puzzleCard.setScaleY(scale);
     }
 
     private StackPane createTopBar() {
@@ -523,7 +570,10 @@ public class GameView extends BorderPane {
             return;
         }
 
-        StackPane puzzleCard = (StackPane) centerStack.getChildren().get(0);
+        if (puzzleCard == null) {
+            return;
+        }
+
         StackPane topBar = (StackPane) getTop();
         VBox titleBlock = (VBox) topBar.getUserData();
 

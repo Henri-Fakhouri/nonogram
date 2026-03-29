@@ -98,7 +98,10 @@ public class BoardView extends GridPane {
         if (max <= 15) {
             return 30;
         }
-        return 24;
+        if (max <= 20) {
+            return 17;
+        }
+        return 14;
     }
 
     public int getCellSize() {
